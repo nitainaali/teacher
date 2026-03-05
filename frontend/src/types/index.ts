@@ -1,0 +1,114 @@
+export interface Course {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  created_at: string;
+}
+
+export interface Document {
+  id: string;
+  course_id: string;
+  filename: string;
+  original_name: string;
+  doc_type: string;
+  processing_status: "pending" | "processing" | "done" | "error";
+  extracted_text: string | null;
+  created_at: string;
+  metadata_: Record<string, unknown> | null;
+}
+
+export interface Flashcard {
+  id: string;
+  course_id: string;
+  source_document_id: string | null;
+  front: string;
+  back: string;
+  topic: string | null;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  next_review_date: string;
+  last_reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface QuizSession {
+  id: string;
+  course_id: string;
+  mode: string;
+  knowledge_mode: string;
+  created_at: string;
+  completed_at: string | null;
+  score: number | null;
+  total_questions: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  question_text: string;
+  question_type: "multiple_choice" | "free_text";
+  options: Array<{ label: string; value: string }> | null;
+  correct_answer: string | null;
+  student_answer: string | null;
+  ai_feedback: string | null;
+  points_possible: number;
+  points_earned: number | null;
+  topic: string | null;
+}
+
+export interface QuizSessionDetail extends QuizSession {
+  questions: QuizQuestion[];
+}
+
+export interface ChatSession {
+  id: string;
+  course_id: string | null;
+  knowledge_mode: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface StudentProfile {
+  id: string;
+  field_of_study: string | null;
+  institution: string | null;
+  year_of_study: number | null;
+  preferences: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ProgressStats {
+  total_documents: number;
+  total_flashcards: number;
+  due_flashcards: number;
+  total_quizzes: number;
+  average_quiz_score: number | null;
+}
+
+export interface ExamUpload {
+  id: string;
+  course_id: string;
+  document_id: string;
+  exam_type: string;
+  reference_exam_id: string | null;
+  analysis: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface HomeworkFeedback {
+  overall_correct: boolean;
+  final_answer_correct: boolean;
+  score_estimate: string;
+  errors: Array<{ step: string; description: string; correction: string }>;
+  strengths: string[];
+  suggestions: string[];
+}

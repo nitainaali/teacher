@@ -1,0 +1,179 @@
+{
+  "app": {
+    "title": "מורה AI"
+  },
+  "nav": {
+    "dashboard": "לוח בקרה",
+    "courses": "קורסים",
+    "documents": "מסמכים",
+    "homework": "בדיקת שיעורי בית",
+    "flashcards": "כרטיסיות",
+    "quizzes": "חידונים",
+    "exams": "מבחנים",
+    "transcripts": "תמלולים",
+    "progress": "התקדמות",
+    "chat": "צ'אט",
+    "settings": "הגדרות",
+    "schedule": "לוח זמנים"
+  },
+  "common": {
+    "loading": "טוען...",
+    "error": "אירעה שגיאה",
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "create": "צור",
+    "upload": "העלה",
+    "submit": "שלח",
+    "back": "חזרה",
+    "done": "סיום",
+    "yes": "כן",
+    "no": "לא",
+    "comingSoon": "בקרוב",
+    "notImplemented": "תכונה זו תגיע בעדכון עתידי."
+  },
+  "knowledgeMode": {
+    "label": "מקור ידע",
+    "general": "ידע כללי",
+    "courseOnly": "חומרי קורס בלבד"
+  },
+  "courses": {
+    "title": "קורסים",
+    "create": "קורס חדש",
+    "name": "שם הקורס",
+    "description": "תיאור",
+    "color": "צבע",
+    "empty": "אין קורסים עדיין. צור את הקורס הראשון שלך!",
+    "namePlaceholder": "למשל: אותות ומערכות",
+    "descriptionPlaceholder": "תיאור אופציונלי"
+  },
+  "documents": {
+    "title": "העלאת מסמך",
+    "docType": "סוג מסמך",
+    "types": {
+      "lecture": "הרצאה",
+      "homework": "שיעורי בית",
+      "exam": "מבחן",
+      "transcript": "תמלול",
+      "reference": "חומר עזר"
+    },
+    "selectCourse": "בחר קורס",
+    "dragDrop": "גרור ושחרר PDF כאן, או לחץ לבחירה",
+    "processing": "מעבד...",
+    "done": "הושלם",
+    "error": "שגיאה",
+    "pending": "ממתין",
+    "uploadSuccess": "המסמך הועלה בהצלחה"
+  },
+  "homework": {
+    "title": "בדיקת שיעורי בית",
+    "subtitle": "העלה תמונה או PDF של שיעורי הבית לקבלת משוב AI",
+    "selectCourse": "בחר קורס (אופציונלי)",
+    "uploadFile": "העלה קובץ שיעורי בית",
+    "dragDrop": "גרור ושחרר תמונה או PDF כאן",
+    "check": "בדוק שיעורי בית",
+    "checking": "בודק...",
+    "results": {
+      "title": "משוב",
+      "score": "ציון",
+      "correct": "נכון!",
+      "incorrect": "דורש שיפור",
+      "errors": "שגיאות שנמצאו",
+      "strengths": "נקודות חוזקה",
+      "suggestions": "הצעות",
+      "step": "שלב",
+      "correction": "תיקון"
+    }
+  },
+  "flashcards": {
+    "title": "כרטיסיות",
+    "generate": "צור מהמסמך",
+    "due": "לסקירה היום",
+    "showAnswer": "הצג תשובה",
+    "quality": {
+      "again": "שוב",
+      "hard": "קשה",
+      "good": "טוב",
+      "easy": "קל"
+    },
+    "empty": "אין כרטיסיות עדיין. צור מהמסמכים שלך!"
+  },
+  "quizzes": {
+    "title": "חידונים",
+    "generate": "צור חידון",
+    "topic": "נושא (אופציונלי)",
+    "count": "מספר שאלות",
+    "mode": {
+      "practice": "תרגול",
+      "exam": "מצב מבחן"
+    },
+    "start": "התחל חידון",
+    "submit": "שלח תשובות",
+    "score": "ציון",
+    "empty": "אין חידונים עדיין",
+    "question": "שאלה",
+    "yourAnswer": "תשובתך",
+    "feedback": "משוב"
+  },
+  "chat": {
+    "title": "צ'אט",
+    "placeholder": "שאל שאלה...",
+    "send": "שלח",
+    "newSession": "שיחה חדשה",
+    "selectCourse": "בחר קורס (אופציונלי)",
+    "history": "היסטוריית שיחות",
+    "thinking": "חושב..."
+  },
+  "progress": {
+    "title": "התקדמות",
+    "totalDocuments": "מסמכים",
+    "totalFlashcards": "כרטיסיות",
+    "dueFlashcards": "לסקירה",
+    "totalQuizzes": "חידונים שנלקחו",
+    "avgScore": "ציון ממוצע",
+    "topicBreakdown": "ביצועים לפי נושא",
+    "noData": "אין נתונים עדיין. התחל ללמוד!"
+  },
+  "exams": {
+    "title": "מבחנים",
+    "upload": "העלה מבחן",
+    "analyze": "נתח",
+    "type": {
+      "reference": "מבחן עזר",
+      "submission": "ההגשה שלי"
+    },
+    "empty": "לא הועלו מבחנים עדיין"
+  },
+  "transcripts": {
+    "title": "תמלולים",
+    "upload": "העלה תמלול",
+    "summarize": "סכם",
+    "empty": "אין תמלולים עדיין"
+  },
+  "settings": {
+    "title": "הגדרות",
+    "profile": "פרופיל סטודנט",
+    "fieldOfStudy": "תחום לימודים",
+    "institution": "מוסד לימודים",
+    "yearOfStudy": "שנת לימודים",
+    "language": "שפה",
+    "explanationStyle": "סגנון הסבר",
+    "styles": {
+      "stepByStep": "שלב אחר שלב",
+      "concise": "תמציתי",
+      "intuitive": "אינטואיטיבי"
+    },
+    "saved": "הפרופיל נשמר!"
+  },
+  "dashboard": {
+    "title": "לוח בקרה",
+    "welcome": "ברוך השב!",
+    "recentActivity": "פעילות אחרונה",
+    "quickStats": "סטטיסטיקות מהירות"
+  },
+  "schedule": {
+    "title": "לוח זמנים",
+    "comingSoon": "מתכנן לוח הלימודים יגיע בשלב 2."
+  }
+}

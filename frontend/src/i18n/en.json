@@ -1,0 +1,179 @@
+{
+  "app": {
+    "title": "AI Tutor"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "courses": "Courses",
+    "documents": "Documents",
+    "homework": "Homework Checker",
+    "flashcards": "Flashcards",
+    "quizzes": "Quizzes",
+    "exams": "Exams",
+    "transcripts": "Transcripts",
+    "progress": "Progress",
+    "chat": "Chat",
+    "settings": "Settings",
+    "schedule": "Schedule"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "upload": "Upload",
+    "submit": "Submit",
+    "back": "Back",
+    "done": "Done",
+    "yes": "Yes",
+    "no": "No",
+    "comingSoon": "Coming Soon",
+    "notImplemented": "This feature is coming in a future update."
+  },
+  "knowledgeMode": {
+    "label": "Knowledge source",
+    "general": "General knowledge",
+    "courseOnly": "Course materials only"
+  },
+  "courses": {
+    "title": "Courses",
+    "create": "New Course",
+    "name": "Course name",
+    "description": "Description",
+    "color": "Color",
+    "empty": "No courses yet. Create your first course!",
+    "namePlaceholder": "e.g. Signals and Systems",
+    "descriptionPlaceholder": "Optional description"
+  },
+  "documents": {
+    "title": "Upload Document",
+    "docType": "Document type",
+    "types": {
+      "lecture": "Lecture notes",
+      "homework": "Homework",
+      "exam": "Exam",
+      "transcript": "Transcript",
+      "reference": "Reference"
+    },
+    "selectCourse": "Select course",
+    "dragDrop": "Drag & drop a PDF here, or click to select",
+    "processing": "Processing...",
+    "done": "Done",
+    "error": "Error",
+    "pending": "Pending",
+    "uploadSuccess": "Document uploaded successfully"
+  },
+  "homework": {
+    "title": "Homework Checker",
+    "subtitle": "Upload a photo or PDF of your homework for AI feedback",
+    "selectCourse": "Select course (optional)",
+    "uploadFile": "Upload homework file",
+    "dragDrop": "Drag & drop an image or PDF here",
+    "check": "Check Homework",
+    "checking": "Checking...",
+    "results": {
+      "title": "Feedback",
+      "score": "Score",
+      "correct": "Correct!",
+      "incorrect": "Needs improvement",
+      "errors": "Errors found",
+      "strengths": "Strengths",
+      "suggestions": "Suggestions",
+      "step": "Step",
+      "correction": "Correction"
+    }
+  },
+  "flashcards": {
+    "title": "Flashcards",
+    "generate": "Generate from document",
+    "due": "Due today",
+    "showAnswer": "Show answer",
+    "quality": {
+      "again": "Again",
+      "hard": "Hard",
+      "good": "Good",
+      "easy": "Easy"
+    },
+    "empty": "No flashcards yet. Generate some from your documents!"
+  },
+  "quizzes": {
+    "title": "Quizzes",
+    "generate": "Generate quiz",
+    "topic": "Topic (optional)",
+    "count": "Number of questions",
+    "mode": {
+      "practice": "Practice",
+      "exam": "Exam mode"
+    },
+    "start": "Start quiz",
+    "submit": "Submit answers",
+    "score": "Score",
+    "empty": "No quizzes yet",
+    "question": "Question",
+    "yourAnswer": "Your answer",
+    "feedback": "Feedback"
+  },
+  "chat": {
+    "title": "Chat",
+    "placeholder": "Ask a question...",
+    "send": "Send",
+    "newSession": "New session",
+    "selectCourse": "Select course (optional)",
+    "history": "Chat history",
+    "thinking": "Thinking..."
+  },
+  "progress": {
+    "title": "Progress",
+    "totalDocuments": "Documents",
+    "totalFlashcards": "Flashcards",
+    "dueFlashcards": "Due for review",
+    "totalQuizzes": "Quizzes taken",
+    "avgScore": "Average score",
+    "topicBreakdown": "Performance by topic",
+    "noData": "No data yet. Start studying!"
+  },
+  "exams": {
+    "title": "Exams",
+    "upload": "Upload exam",
+    "analyze": "Analyze",
+    "type": {
+      "reference": "Reference exam",
+      "submission": "My submission"
+    },
+    "empty": "No exams uploaded yet"
+  },
+  "transcripts": {
+    "title": "Transcripts",
+    "upload": "Upload transcript",
+    "summarize": "Summarize",
+    "empty": "No transcripts yet"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Student Profile",
+    "fieldOfStudy": "Field of study",
+    "institution": "Institution",
+    "yearOfStudy": "Year of study",
+    "language": "Language",
+    "explanationStyle": "Explanation style",
+    "styles": {
+      "stepByStep": "Step by step",
+      "concise": "Concise",
+      "intuitive": "Intuitive"
+    },
+    "saved": "Profile saved!"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back!",
+    "recentActivity": "Recent activity",
+    "quickStats": "Quick stats"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "comingSoon": "Study schedule planner coming soon in Phase 2."
+  }
+}

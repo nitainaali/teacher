@@ -1,0 +1,33 @@
+from app.models.models import (
+    Course,
+    Document,
+    DocumentChunk,
+    Flashcard,
+    QuizSession,
+    QuizQuestion,
+    StudentPerformance,
+    ExamUpload,
+    StudentProfile,
+    LearningEvent,
+    ChatSession,
+    ChatMessage,
+    ExamDate,
+    PlannedStudySession,
+)
+
+__all__ = [
+    "Course",
+    "Document",
+    "DocumentChunk",
+    "Flashcard",
+    "QuizSession",
+    "QuizQuestion",
+    "StudentPerformance",
+    "ExamUpload",
+    "StudentProfile",
+    "LearningEvent",
+    "ChatSession",
+    "ChatMessage",
+    "ExamDate",
+    "PlannedStudySession",
+]
