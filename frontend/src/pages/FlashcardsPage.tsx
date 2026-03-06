@@ -3,28 +3,41 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { getFlashcards, generateFlashcards, reviewFlashcard } from "../api/flashcards";
 import { getDocuments } from "../api/documents";
+import { MarkdownContent } from "../components/MarkdownContent";
+import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { Flashcard } from "../types";
 import type { Document } from "../types";
 
 type Mode = "config" | "review";
-type CardType = "mixed" | "comprehension" | "memorization" | "application";
 type SessionLength = 5 | 10 | 20 | "all";
+
+const ALL_CARD_TYPES = [
+  "comprehension",
+  "memorization",
+  "application",
+  "tricks",
+  "confusion",
+] as const;
+type CardType = typeof ALL_CARD_TYPES[number];
 
 export function FlashcardsPage() {
   const { t } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
 
   const [mode, setMode] = useState<Mode>("config");
-  const [cardType, setCardType] = useState<CardType>("mixed");
   const [sessionLength, setSessionLength] = useState<SessionLength>(10);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+
+  // Generate config
   const [docs, setDocs] = useState<Document[]>([]);
   const [genDocId, setGenDocId] = useState("");
-  const [genCount, setGenCount] = useState(10);
-  const [genCardType, setGenCardType] = useState<CardType>("mixed");
+  const [genCount, setGenCount] = useState(20);
+  const [genCardTypes, setGenCardTypes] = useState<Set<CardType>>(new Set(ALL_CARD_TYPES));
+  const [genTopic, setGenTopic] = useState("");
+  const [genGuidance, setGenGuidance] = useState("");
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
@@ -67,10 +80,33 @@ export function FlashcardsPage() {
     if (!courseId || !genDocId) return;
     setGenerating(true);
     try {
-      await generateFlashcards(genDocId, courseId, genCount, genCardType);
+      // Backend accepts: "mixed" | single type name
+      // If exactly 1 type selected → send that type; otherwise → "mixed"
+      const cardTypeParam =
+        genCardTypes.size === 1 ? Array.from(genCardTypes)[0] : "mixed";
+      await generateFlashcards(
+        genDocId,
+        courseId,
+        genCount,
+        cardTypeParam as string,
+        genTopic.trim() || undefined,
+        genGuidance.trim() || undefined,
+      );
     } finally {
       setGenerating(false);
     }
+  };
+
+  const toggleCardType = (type: CardType) => {
+    setGenCardTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        if (next.size > 1) next.delete(type); // keep at least 1
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
   };
 
   const backToConfig = () => {
@@ -79,13 +115,6 @@ export function FlashcardsPage() {
     setIndex(0);
     setFlipped(false);
   };
-
-  const cardTypeOptions: { value: CardType; label: string }[] = [
-    { value: "mixed", label: t("flashcards.config.mixed") },
-    { value: "comprehension", label: t("flashcards.config.comprehension") },
-    { value: "memorization", label: t("flashcards.config.memorization") },
-    { value: "application", label: t("flashcards.config.application") },
-  ];
 
   const sessionLengthOptions: { value: SessionLength; label: string }[] = [
     { value: 5, label: t("flashcards.config.cards5") },
@@ -122,14 +151,17 @@ export function FlashcardsPage() {
           <div>
             <p className="text-sm text-gray-400 mb-4">
               {index + 1} / {cards.length} — {t("flashcards.due")}
+              {current.topic && (
+                <span className="ml-2 text-blue-400">· {current.topic}</span>
+              )}
             </p>
             <div
               className="bg-gray-800 rounded-xl p-8 min-h-48 flex items-center justify-center cursor-pointer border border-gray-700 hover:border-gray-600 transition-colors"
               onClick={() => setFlipped(!flipped)}
             >
-              <p className="text-center text-lg">
-                {flipped ? current.back : current.front}
-              </p>
+              <div className="text-center w-full">
+                <MarkdownContent content={flipped ? current.back : current.front} />
+              </div>
             </div>
 
             {!flipped ? (
@@ -143,9 +175,9 @@ export function FlashcardsPage() {
               <div className="mt-4 grid grid-cols-4 gap-2">
                 {[
                   { quality: 0, label: t("flashcards.quality.again"), color: "bg-red-700 hover:bg-red-600" },
-                  { quality: 2, label: t("flashcards.quality.hard"), color: "bg-orange-700 hover:bg-orange-600" },
-                  { quality: 4, label: t("flashcards.quality.good"), color: "bg-green-700 hover:bg-green-600" },
-                  { quality: 5, label: t("flashcards.quality.easy"), color: "bg-blue-700 hover:bg-blue-600" },
+                  { quality: 1, label: t("flashcards.quality.hard"), color: "bg-orange-700 hover:bg-orange-600" },
+                  { quality: 2, label: t("flashcards.quality.good"), color: "bg-green-700 hover:bg-green-600" },
+                  { quality: 3, label: t("flashcards.quality.easy"), color: "bg-blue-700 hover:bg-blue-600" },
                 ].map(({ quality, label, color }) => (
                   <button
                     key={quality}
@@ -164,29 +196,19 @@ export function FlashcardsPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{t("flashcards.config.title")}</h1>
+    <div className="max-w-xl mx-auto space-y-5">
+      <h1 className="text-2xl font-bold">{t("flashcards.config.title")}</h1>
 
-      <div className="space-y-4 mb-6">
-        <div>
-          <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.cardType")}</p>
-          <div className="flex flex-wrap gap-2">
-            {cardTypeOptions.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setCardType(value)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  cardType === value
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Recommendations */}
+      {courseId && (
+        <RecommendationsPanel
+          courseId={courseId}
+          onTopicSelect={(topic) => setGenTopic(topic)}
+        />
+      )}
 
+      {/* Session setup */}
+      <div className="bg-gray-800 rounded-xl p-4 space-y-4">
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.sessionLength")}</p>
           <div className="flex gap-2">
@@ -215,6 +237,7 @@ export function FlashcardsPage() {
         </button>
       </div>
 
+      {/* Generate section */}
       <div className="bg-gray-800 rounded-xl p-4 space-y-4">
         <h2 className="text-base font-semibold">{t("flashcards.config.generateTitle")}</h2>
 
@@ -238,37 +261,69 @@ export function FlashcardsPage() {
           </select>
         </div>
 
+        {/* Count slider */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">
-            {t("flashcards.config.count")}
+          <label className="block text-sm text-gray-400 mb-2">
+            {t("flashcards.config.count")}: <span className="text-white font-medium">{genCount}</span>
           </label>
           <input
-            type="number"
-            min={1}
-            max={50}
+            type="range"
+            min={20}
+            max={150}
+            step={5}
             value={genCount}
             onChange={(e) => setGenCount(Number(e.target.value))}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            className="w-full accent-blue-500"
           />
+          <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+            <span>20</span>
+            <span>150</span>
+          </div>
         </div>
 
+        {/* Card types checkboxes */}
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.cardType")}</p>
           <div className="flex flex-wrap gap-2">
-            {cardTypeOptions.map(({ value, label }) => (
+            {ALL_CARD_TYPES.map((type) => (
               <button
-                key={value}
-                onClick={() => setGenCardType(value)}
+                key={type}
+                type="button"
+                onClick={() => toggleCardType(type)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  genCardType === value
+                  genCardTypes.has(type)
                     ? "bg-blue-600 text-white"
                     : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                 }`}
               >
-                {label}
+                {t(`flashcards.config.${type}`)}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Topic filter */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">{t("flashcards.config.topic")}</label>
+          <input
+            type="text"
+            value={genTopic}
+            onChange={(e) => setGenTopic(e.target.value)}
+            placeholder={t("flashcards.config.topicPlaceholder")}
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 placeholder-gray-600"
+          />
+        </div>
+
+        {/* Guidance */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">{t("flashcards.config.guidance")}</label>
+          <input
+            type="text"
+            value={genGuidance}
+            onChange={(e) => setGenGuidance(e.target.value)}
+            placeholder={t("flashcards.config.guidancePlaceholder")}
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 placeholder-gray-600"
+          />
         </div>
 
         <button

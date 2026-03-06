@@ -125,11 +125,13 @@
     "completeSubtitle": "All cards reviewed. Great work!",
     "config": {
       "title": "Flashcard Session Setup",
-      "cardType": "Card type",
+      "cardType": "Card types",
       "mixed": "All types",
       "comprehension": "Comprehension",
       "memorization": "Memorization",
       "application": "Application",
+      "tricks": "Tricks & Mnemonics",
+      "confusion": "True/False",
       "sessionLength": "Session length",
       "cards5": "5 cards",
       "cards10": "10 cards",
@@ -146,9 +148,13 @@
       "selectDocument": "Select document",
       "document": "Document",
       "cardCount": "Number of cards",
-      "count": "Number of cards",
+      "count": "Number of cards (20–150)",
       "noDocs": "No documents available. Upload materials first.",
-      "generate": "Generate Cards"
+      "generate": "Generate Cards",
+      "topic": "Topic filter",
+      "topicPlaceholder": "Filter by topic (optional)",
+      "guidance": "Additional guidance",
+      "guidancePlaceholder": "e.g. 'focus on formulas', 'emphasize circuit analysis'"
     }
   },
   "quizzes": {
@@ -170,7 +176,7 @@
     "feedback": "Feedback",
     "config": {
       "title": "Quiz Setup",
-      "questionType": "Question type",
+      "questionType": "Question types",
       "mixed": "Mixed",
       "multipleChoice": "Multiple choice",
       "freeText": "Free text",
@@ -215,13 +221,18 @@
   "examAnalysis": {
     "title": "Exam Analysis",
     "uploadExam": "Upload your exam",
-    "uploadHint": "Upload a solved exam (PDF or image) to get detailed analysis",
-    "uploadReference": "Upload reference exam (optional)",
+    "uploadHint": "Upload a solved exam (PDF or image) to get detailed per-topic analysis",
+    "uploadReference": "Reference exam (optional)",
+    "uploadReferenceHint": "Upload the original exam or a model solution for comparison",
     "dragDrop": "Drag & drop here, or click to select",
-    "guidancePlaceholder": "Guide the analysis (e.g. 'focus on my calculation errors', 'compare to reference')",
+    "guidancePlaceholder": "Guide the analysis (e.g. 'focus on my calculation errors', 'compare writing style')",
+    "experience": "Your exam experience (optional)",
+    "experiencePlaceholder": "Describe how the exam went — timing, hard questions, how you felt during the exam...",
     "analyze": "Analyze Exam",
     "analyzing": "Analyzing...",
     "noFile": "Please upload an exam file first",
+    "savedToProfile": "Analysis saved to your learning profile",
+    "results": "Analysis Results",
     "comingSoon": "Full exam analysis coming soon. Upload your exam to begin."
   },
   "diagnosis": {
@@ -248,6 +259,16 @@
     "topicBreakdown": "Performance by topic",
     "noData": "No data yet. Start studying!"
   },
+  "recommendations": {
+    "title": "Study Recommendations",
+    "subtitle": "Based on your exam topics and learning history",
+    "noData": "No recommendations yet. Upload past exams and study more topics to get personalized recommendations.",
+    "urgency": {
+      "high": "High priority",
+      "medium": "Medium priority",
+      "low": "Low priority"
+    }
+  },
   "settings": {
     "title": "Settings",
     "profile": "Student Profile",
@@ -255,8 +276,18 @@
     "institution": "Institution",
     "yearOfStudy": "Year of study",
     "language": "Language",
+    "teachingStyle": "Teaching style",
+    "teachingStyleHint": "How should the AI communicate with you?",
+    "styleNotes": "Additional instructions (optional)",
+    "styleNotesPlaceholder": "e.g. 'Use intuitive explanations', 'Skip lengthy proofs', 'Always show units'",
     "explanationStyle": "Explanation style",
     "styles": {
+      "direct": "Direct",
+      "directDesc": "Immediate corrections, precision over encouragement",
+      "balanced": "Balanced",
+      "balancedDesc": "Mix of encouragement and clear correction",
+      "supportive": "Supportive",
+      "supportiveDesc": "Lead with encouragement, correct gently",
       "stepByStep": "Step by step",
       "concise": "Concise",
       "intuitive": "Intuitive"

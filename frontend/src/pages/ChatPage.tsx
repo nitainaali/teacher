@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { getChatSessions, getChatMessages, deleteChatSession, streamChatMessageFetch } from "../api/chat";
+import { MarkdownContent } from "../components/MarkdownContent";
 import type { ChatSession, ChatMessage } from "../types";
 
 export function ChatPage() {
@@ -128,14 +129,18 @@ export function ChatPage() {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${msg.role === "user" ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-100"}`}>
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === "assistant" ? (
+                  <MarkdownContent content={msg.content} />
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
               </div>
             </div>
           ))}
           {streamingText && (
             <div className="flex justify-start">
               <div className="max-w-[70%] rounded-xl px-4 py-2.5 text-sm bg-gray-700 text-gray-100">
-                <p className="whitespace-pre-wrap">{streamingText}</p>
+                <MarkdownContent content={streamingText} />
                 <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5" />
               </div>
             </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import client from "../api/client";
+import { MarkdownContent } from "../components/MarkdownContent";
 
 interface TopicEntry {
   topic: string;
@@ -114,12 +115,10 @@ export function TopicSummaryPage() {
 
           {(summary || streaming) && (
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <p className="text-white text-sm whitespace-pre-wrap leading-relaxed">
-                {summary}
-                {streaming && (
-                  <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
-                )}
-              </p>
+              <MarkdownContent content={summary} />
+              {streaming && (
+                <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
+              )}
             </div>
           )}
         </>

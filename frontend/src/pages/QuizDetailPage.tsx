@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getQuiz, submitQuiz } from "../api/quizzes";
+import { MarkdownContent } from "../components/MarkdownContent";
 import type { QuizSessionDetail, QuizQuestion } from "../types";
 
 export function QuizDetailPage() {
@@ -88,7 +89,7 @@ function QuizQuestionCard({
   return (
     <div className="bg-gray-800 rounded-xl p-5">
       <p className="text-sm text-gray-400 mb-1">{t("quizzes.question")} {index + 1}</p>
-      <p className="font-medium mb-4">{question.question_text}</p>
+      <div className="font-medium mb-4"><MarkdownContent content={question.question_text} /></div>
 
       {question.question_type === "multiple_choice" && question.options ? (
         <div className="space-y-2">
@@ -128,7 +129,7 @@ function QuizQuestionCard({
       {submitted && question.ai_feedback && (
         <div className="mt-3 p-3 bg-gray-700 rounded-lg">
           <p className="text-xs text-gray-400 mb-1">{t("quizzes.feedback")}</p>
-          <p className="text-sm text-gray-200">{question.ai_feedback}</p>
+          <div className="text-sm text-gray-200"><MarkdownContent content={question.ai_feedback} /></div>
           {question.points_earned !== null && (
             <p className="text-xs text-blue-400 mt-1">{question.points_earned} / {question.points_possible}</p>
           )}

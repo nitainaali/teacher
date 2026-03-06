@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
+import { MarkdownContent } from "../components/MarkdownContent";
 import type { HomeworkFeedback } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -162,7 +163,7 @@ export function HomeworkPage() {
       ) : rawResponse ? (
         <div className="mt-8 bg-gray-800 rounded-xl p-4">
           <h2 className="text-lg font-semibold mb-3">{t("homework.results.title")}</h2>
-          <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{rawResponse}</pre>
+          <MarkdownContent content={rawResponse} />
         </div>
       ) : null}
     </div>

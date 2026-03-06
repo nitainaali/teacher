@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { getQuizzes, generateQuiz } from "../api/quizzes";
+import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { QuizSession } from "../types";
 
 export function QuizzesPage() {
@@ -10,7 +11,9 @@ export function QuizzesPage() {
   const navigate = useNavigate();
 
   const [sessions, setSessions] = useState<QuizSession[]>([]);
-  const [questionType, setQuestionType] = useState("mixed");
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
+    new Set(["multiple_choice", "free_text"])
+  );
   const [difficulty, setDifficulty] = useState("medium");
   const [count, setCount] = useState(5);
   const [topic, setTopic] = useState("");
@@ -23,6 +26,24 @@ export function QuizzesPage() {
     }
   }, [courseId]);
 
+  const toggleType = (type: string) => {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        if (next.size > 1) next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  };
+
+  const resolveQuestionType = () => {
+    if (selectedTypes.has("multiple_choice") && selectedTypes.has("free_text")) return "mixed";
+    if (selectedTypes.has("multiple_choice")) return "multiple_choice";
+    return "free_text";
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!courseId) return;
@@ -33,7 +54,7 @@ export function QuizzesPage() {
         topic: topic || undefined,
         count,
         knowledge_mode: knowledgeMode,
-        question_type: questionType,
+        question_type: resolveQuestionType(),
         difficulty,
       });
       navigate(`/course/${courseId}/learning/quizzes/${session.id}`);
@@ -43,7 +64,6 @@ export function QuizzesPage() {
   };
 
   const qtOptions = [
-    { value: "mixed", label: t("quizzes.config.mixed") },
     { value: "multiple_choice", label: t("quizzes.config.multipleChoice") },
     { value: "free_text", label: t("quizzes.config.freeText") },
   ];
@@ -55,12 +75,21 @@ export function QuizzesPage() {
   ];
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{t("quizzes.title")}</h1>
+    <div className="max-w-2xl mx-auto space-y-5">
+      <h1 className="text-2xl font-bold">{t("quizzes.title")}</h1>
 
-      <form onSubmit={handleGenerate} className="bg-gray-800 rounded-xl p-5 space-y-4 mb-8">
+      {/* Recommendations */}
+      {courseId && (
+        <RecommendationsPanel
+          courseId={courseId}
+          onTopicSelect={(rec) => setTopic(rec)}
+        />
+      )}
+
+      <form onSubmit={handleGenerate} className="bg-gray-800 rounded-xl p-5 space-y-4">
         <h2 className="text-base font-semibold">{t("quizzes.config.title")}</h2>
 
+        {/* Question types — multi-select checkboxes */}
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("quizzes.config.questionType")}</p>
           <div className="flex gap-2">
@@ -68,9 +97,9 @@ export function QuizzesPage() {
               <button
                 key={value}
                 type="button"
-                onClick={() => setQuestionType(value)}
+                onClick={() => toggleType(value)}
                 className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  questionType === value
+                  selectedTypes.has(value)
                     ? "bg-blue-600 text-white"
                     : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                 }`}
@@ -79,8 +108,12 @@ export function QuizzesPage() {
               </button>
             ))}
           </div>
+          {selectedTypes.size === 2 && (
+            <p className="text-xs text-gray-500 mt-1">→ {t("quizzes.config.mixed")}</p>
+          )}
         </div>
 
+        {/* Difficulty */}
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("quizzes.config.difficulty")}</p>
           <div className="flex gap-2">
