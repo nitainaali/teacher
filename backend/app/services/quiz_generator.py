@@ -14,6 +14,8 @@ async def generate_quiz(
     count: int,
     knowledge_mode: str,
     mode: str,
+    difficulty: str = "medium",
+    question_type: str = "mixed",
 ) -> QuizSession:
     session = QuizSession(
         course_id=course_id,
@@ -32,9 +34,17 @@ async def generate_quiz(
             extra_system = f"Relevant course materials:\n\n{context}"
 
     topic_str = f" on the topic: {topic}" if topic else ""
+    difficulty_map = {"easy": "basic conceptual", "medium": "intermediate", "hard": "advanced and challenging"}
+    difficulty_desc = difficulty_map.get(difficulty, "intermediate")
+    if question_type == "multiple_choice":
+        qtype_instruction = "Use only multiple_choice questions."
+    elif question_type == "free_text":
+        qtype_instruction = "Use only free_text questions."
+    else:
+        qtype_instruction = "Mix multiple choice and free text questions."
     prompt = (
-        f"Generate {count} quiz questions{topic_str} for an electrical engineering student. "
-        "Mix multiple choice and free text questions. "
+        f"Generate {count} {difficulty_desc} quiz questions{topic_str} for an electrical engineering student. "
+        f"{qtype_instruction} "
         "Return a JSON array. Each object must have:\n"
         "- question_text: string\n"
         "- question_type: 'multiple_choice' or 'free_text'\n"

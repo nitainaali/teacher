@@ -44,10 +44,51 @@ async def process_document(document_id: str, db: AsyncSession) -> None:
         doc.processing_status = "done"
         await db.commit()
 
+        # If this is an exam document, extract key topics for study recommendations
+        if doc.doc_type == "exam":
+            await _extract_exam_topics(db, doc)
+
     except Exception as e:
         doc.processing_status = "error"
         doc.metadata_ = {"error": str(e)}
         await db.commit()
+
+
+async def _extract_exam_topics(db: AsyncSession, doc: Document) -> None:
+    """Extract key topics from an exam document and log as learning events."""
+    if not doc.extracted_text:
+        return
+    from app.services import student_intelligence
+    import json, re as _re
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        prompt = (
+            "List the main engineering/math topics that are TESTED in this exam. "
+            "Return a JSON array of strings, each 2-5 words (e.g. 'Kirchhoff voltage law', 'Fourier transform'). "
+            "Raw JSON array only, no markdown.\n\n"
+            f"Exam content:\n{doc.extracted_text[:3000]}"
+        )
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = response.content[0].text
+        match = _re.search(r'\[.*\]', text, _re.DOTALL)
+        if match:
+            topics = json.loads(match.group())
+            for topic in topics:
+                if isinstance(topic, str) and topic.strip():
+                    await student_intelligence.write_learning_event(
+                        db=db,
+                        event_type="exam_topic",
+                        course_id=doc.course_id,
+                        topic=topic.strip(),
+                        details={"document_id": doc.id, "document_name": doc.original_name},
+                    )
+            await db.commit()
+    except Exception:
+        pass
 
 
 async def _extract_text(file_path: str) -> str:

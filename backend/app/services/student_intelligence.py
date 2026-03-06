@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, update
 from app.models.models import StudentProfile, LearningEvent
 from typing import Optional
 import anthropic
@@ -8,20 +8,19 @@ from app.core.config import settings
 
 async def build_student_context(db: AsyncSession, course_id: Optional[str] = None) -> str:
     """Build dynamic student context string for injection into Claude system prompt."""
-    # Fetch student profile
     profile_result = await db.execute(select(StudentProfile).limit(1))
     profile = profile_result.scalar_one_or_none()
 
-    # Fetch recent learning events
-    query = select(LearningEvent).order_by(desc(LearningEvent.created_at)).limit(50)
+    query = select(LearningEvent).order_by(desc(LearningEvent.created_at)).limit(100)
     if course_id:
         query = query.where(LearningEvent.course_id == course_id)
     events_result = await db.execute(query)
     events = events_result.scalars().all()
 
-    lines = ["Student context (based on recent activity):"]
+    lines = []
 
     if profile:
+        # Student profile
         parts = []
         if profile.field_of_study:
             parts.append(profile.field_of_study)
@@ -30,13 +29,35 @@ async def build_student_context(db: AsyncSession, course_id: Optional[str] = Non
         if profile.institution:
             parts.append(profile.institution)
         if parts:
-            lines.insert(0, f"Student profile:\n- {', '.join(parts)}\n")
+            lines.append(f"Student profile: {', '.join(parts)}")
+
+        # Teaching style
+        style_map = {
+            "direct": (
+                "Be direct and immediate with corrections. Point out mistakes clearly and precisely "
+                "without over-softening. Prioritize accuracy and brevity over encouragement."
+            ),
+            "balanced": (
+                "Balance encouragement with clear, honest corrections. "
+                "Acknowledge what's correct before addressing mistakes."
+            ),
+            "supportive": (
+                "Lead with encouragement and positive reinforcement. "
+                "Correct gently and constructively, emphasizing progress and growth."
+            ),
+        }
+        style = getattr(profile, "teaching_style", None) or "balanced"
+        style_desc = style_map.get(style, style_map["balanced"])
+        style_notes = getattr(profile, "style_notes", None)
+        extra = f" {style_notes}" if style_notes else ""
+        lines.append(f"Teaching style preference: {style_desc}{extra}")
+
+    lines.append("Student learning context (based on recent activity in this course):")
 
     if not events:
         lines.append("- No recent activity recorded yet.")
         return "\n".join(lines)
 
-    # Aggregate by topic
     struggle_topics: dict[str, int] = {}
     strong_topics: dict[str, int] = {}
     recent_chat: list[str] = []
@@ -54,21 +75,21 @@ async def build_student_context(db: AsyncSession, course_id: Optional[str] = Non
         elif event.event_type == "chat_question" and event.details:
             q = event.details.get("question", "")
             if q and len(recent_chat) < 3:
-                recent_chat.append(q[:100])
+                recent_chat.append(q[:120])
         elif event.event_type == "homework_error" and event.details:
             e = event.details.get("error", "")
             if e and len(recent_errors) < 3:
-                recent_errors.append(e[:100])
+                recent_errors.append(e[:120])
 
-    top_struggles = sorted(struggle_topics.items(), key=lambda x: -x[1])[:3]
-    top_strengths = sorted(strong_topics.items(), key=lambda x: -x[1])[:3]
+    top_struggles = sorted(struggle_topics.items(), key=lambda x: -x[1])[:5]
+    top_strengths = sorted(strong_topics.items(), key=lambda x: -x[1])[:5]
 
     if top_struggles:
-        lines.append("- Struggles with: " + ", ".join(t for t, _ in top_struggles))
+        lines.append("- Struggles with: " + ", ".join(f"{t} ({c})" for t, c in top_struggles))
     if top_strengths:
-        lines.append("- Strong in: " + ", ".join(t for t, _ in top_strengths))
+        lines.append("- Strong in: " + ", ".join(f"{t} ({c})" for t, c in top_strengths))
     if recent_chat:
-        lines.append("- Recently asked in chat: " + "; ".join(recent_chat))
+        lines.append("- Recently asked: " + "; ".join(recent_chat))
     if recent_errors:
         lines.append("- Recent homework errors: " + "; ".join(recent_errors))
 
@@ -81,7 +102,8 @@ async def write_learning_event(
     course_id: Optional[str] = None,
     topic: Optional[str] = None,
     details: Optional[dict] = None,
-) -> None:
+) -> str:
+    """Write a learning event. Returns event ID for later topic update."""
     event = LearningEvent(
         event_type=event_type,
         course_id=course_id,
@@ -90,10 +112,29 @@ async def write_learning_event(
     )
     db.add(event)
     await db.flush()
+    return event.id
+
+
+async def extract_and_update_topic(
+    db: AsyncSession,
+    event_id: str,
+    interaction_text: str,
+) -> None:
+    """Extract topic from interaction text and update the learning event. Best-effort."""
+    try:
+        topic = await extract_topic_background(interaction_text)
+        await db.execute(
+            update(LearningEvent)
+            .where(LearningEvent.id == event_id)
+            .values(topic=topic)
+        )
+        await db.flush()
+    except Exception:
+        pass
 
 
 async def extract_topic_background(interaction_text: str) -> str:
-    """Fire-and-forget topic extraction via a lightweight Claude call."""
+    """Fire-and-forget topic extraction via Claude Haiku."""
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(

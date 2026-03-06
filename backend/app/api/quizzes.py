@@ -23,6 +23,8 @@ async def create_quiz(data: QuizGenerateRequest, db: AsyncSession = Depends(get_
         count=data.count,
         knowledge_mode=data.knowledge_mode,
         mode=data.mode,
+        difficulty=data.difficulty,
+        question_type=data.question_type,
     )
     await db.commit()
     await db.refresh(session)

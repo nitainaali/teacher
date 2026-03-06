@@ -2,20 +2,6 @@
   "app": {
     "title": "מורה AI"
   },
-  "nav": {
-    "dashboard": "לוח בקרה",
-    "courses": "קורסים",
-    "documents": "מסמכים",
-    "homework": "בדיקת שיעורי בית",
-    "flashcards": "כרטיסיות",
-    "quizzes": "חידונים",
-    "exams": "מבחנים",
-    "transcripts": "תמלולים",
-    "progress": "התקדמות",
-    "chat": "צ'אט",
-    "settings": "הגדרות",
-    "schedule": "לוח זמנים"
-  },
   "common": {
     "loading": "טוען...",
     "error": "אירעה שגיאה",
@@ -31,12 +17,40 @@
     "yes": "כן",
     "no": "לא",
     "comingSoon": "בקרוב",
-    "notImplemented": "תכונה זו תגיע בעדכון עתידי."
+    "notImplemented": "תכונה זו תגיע בעדכון עתידי.",
+    "start": "התחל",
+    "generate": "צור",
+    "analyze": "נתח",
+    "send": "שלח"
   },
   "knowledgeMode": {
     "label": "מקור ידע",
     "general": "ידע כללי",
     "courseOnly": "חומרי קורס בלבד"
+  },
+  "tabs": {
+    "newCourse": "קורס חדש",
+    "courseName": "שם הקורס",
+    "courseColor": "צבע",
+    "createCourse": "צור קורס",
+    "namePlaceholder": "למשל: אותות ומערכות"
+  },
+  "welcome": {
+    "title": "ברוך הבא למורה AI",
+    "subtitle": "העוזר האישי שלך ללימוד הנדסת חשמל.",
+    "createFirst": "צור קורס ראשון",
+    "description": "התחל על ידי יצירת הקורס הראשון שלך. לאחר מכן תוכל להעלות חומרים, לשוחח עם AI, ליצור כרטיסיות ועוד."
+  },
+  "sidebar": {
+    "knowledge": "ידע פנימי",
+    "learning": "לימוד",
+    "summary": "סיכום נושאים",
+    "flashcards": "כרטיסיות",
+    "quizzes": "בחנים",
+    "chat": "שאל שאלה",
+    "homework": "עזרה במטלות",
+    "exam": "ניתוח מבחן",
+    "diagnosis": "אבחון מצב"
   },
   "courses": {
     "title": "קורסים",
@@ -48,31 +62,149 @@
     "namePlaceholder": "למשל: אותות ומערכות",
     "descriptionPlaceholder": "תיאור אופציונלי"
   },
-  "documents": {
-    "title": "העלאת מסמך",
-    "docType": "סוג מסמך",
+  "knowledge": {
+    "title": "ידע פנימי",
+    "addFile": "הוסף קובץ",
+    "empty": "אין קבצים עדיין.",
+    "emptyHint": "העלה חומרי קורס כדי להתחיל — הרצאות, מבחנים, תמלולים ועוד.",
+    "contentCategory": "סוג תוכן",
+    "fileFormat": "פורמט",
+    "uploading": "מעלה...",
+    "uploadSuccess": "הקובץ הועלה בהצלחה",
+    "dragDrop": "גרור ושחרר קובץ כאן, או לחץ לבחירה",
+    "formats": {
+      "pdf": "PDF",
+      "image": "תמונה"
+    },
     "types": {
       "lecture": "הרצאה",
-      "homework": "שיעורי בית",
+      "summary": "סיכום",
       "exam": "מבחן",
-      "transcript": "תמלול",
+      "transcript": "תמלול הרצאה",
       "reference": "חומר עזר"
     },
-    "selectCourse": "בחר קורס",
-    "dragDrop": "גרור ושחרר PDF כאן, או לחץ לבחירה",
-    "processing": "מעבד...",
-    "done": "הושלם",
-    "error": "שגיאה",
-    "pending": "ממתין",
-    "uploadSuccess": "המסמך הועלה בהצלחה"
+    "status": {
+      "pending": "ממתין",
+      "processing": "מעבד...",
+      "done": "מוכן",
+      "error": "שגיאה"
+    }
+  },
+  "learning": {
+    "title": "לימוד",
+    "subtitle": "בחר מה ברצונך ללמוד",
+    "summary": "סיכום נושאים",
+    "summaryDesc": "קבל סיכום מקיף של כל נושא מחומרי הקורס שלך",
+    "flashcards": "כרטיסיות",
+    "flashcardsDesc": "חזור עם כרטיסיות חכמות עם חזרה מרווחת",
+    "quizzes": "בחנים",
+    "quizzesDesc": "בחן את הידע שלך עם שאלות שנוצרו על ידי AI"
+  },
+  "topicSummary": {
+    "title": "סיכום נושאים",
+    "selectTopic": "בחר נושא לסיכום",
+    "noTopics": "אין נושאים עדיין. התחל ללמוד כדי לבנות היסטוריית נושאים.",
+    "guidancePlaceholder": "אופציונלי: הכוון את הסיכום (למשל 'התמקד בנוסחאות', 'הסבר אינטואיטיבית')",
+    "summarize": "סכם",
+    "summarizing": "מייצר סיכום...",
+    "chatPlaceholder": "שאל שאלת המשך על הנושא הזה..."
+  },
+  "flashcards": {
+    "title": "כרטיסיות",
+    "generate": "צור מהמסמך",
+    "due": "לסקירה היום",
+    "showAnswer": "הצג תשובה",
+    "quality": {
+      "again": "שוב",
+      "hard": "קשה",
+      "good": "טוב",
+      "easy": "קל"
+    },
+    "empty": "אין כרטיסיות עדיין. צור מהמסמכים שלך!",
+    "complete": "הסשן הושלם!",
+    "completeSubtitle": "כל הכרטיסיות נסקרו. עבודה מצוינת!",
+    "config": {
+      "title": "הגדרת סשן כרטיסיות",
+      "cardType": "סוגי כרטיסיות",
+      "mixed": "כל הסוגים",
+      "comprehension": "הבנה",
+      "memorization": "שינון",
+      "application": "התקלה",
+      "tricks": "טריקים ומנמוניקה",
+      "confusion": "נכון/לא נכון",
+      "sessionLength": "אורך סשן",
+      "cards5": "5 כרטיסיות",
+      "cards10": "10 כרטיסיות",
+      "cards20": "20 כרטיסיות",
+      "cardsAll": "כל הכרטיסיות שתוכננו",
+      "difficulty": "סינון קושי",
+      "diffAll": "הכל",
+      "diffEasy": "קל",
+      "diffMedium": "בינוני",
+      "diffHard": "קשה",
+      "startSession": "התחל סשן",
+      "generateNew": "צור כרטיסיות חדשות",
+      "generateTitle": "צור כרטיסיות חדשות",
+      "selectDocument": "בחר מסמך",
+      "document": "מסמך",
+      "cardCount": "מספר כרטיסיות",
+      "count": "מספר כרטיסיות (20–150)",
+      "noDocs": "אין מסמכים זמינים. העלה חומרים תחילה.",
+      "generate": "צור כרטיסיות",
+      "topic": "סינון לפי נושא",
+      "topicPlaceholder": "סינון לפי נושא (אופציונלי)",
+      "guidance": "הנחיות נוספות",
+      "guidancePlaceholder": "למשל 'התמקד בנוסחאות', 'הדגש ניתוח מעגלים'"
+    }
+  },
+  "quizzes": {
+    "title": "בחנים",
+    "generate": "צור בחן",
+    "topic": "נושא (אופציונלי)",
+    "count": "מספר שאלות",
+    "questions": "שאלות",
+    "mode": {
+      "practice": "תרגול",
+      "exam": "מצב מבחן"
+    },
+    "start": "התחל בחן",
+    "submit": "שלח תשובות",
+    "score": "ציון",
+    "empty": "אין בחנים עדיין",
+    "question": "שאלה",
+    "yourAnswer": "תשובתך",
+    "feedback": "משוב",
+    "config": {
+      "title": "הגדרת בחן",
+      "questionType": "סוגי שאלות",
+      "mixed": "מעורב",
+      "multipleChoice": "אמריקאיות",
+      "freeText": "פתוחות",
+      "difficulty": "רמת קושי",
+      "easy": "קל",
+      "medium": "בינוני",
+      "hard": "קשה",
+      "topicPlaceholder": "סינון לפי נושא (אופציונלי)",
+      "topicLabel": "נושא",
+      "createQuiz": "צור בחן",
+      "history": "בחנים קודמים"
+    }
+  },
+  "chat": {
+    "title": "שאל שאלה",
+    "placeholder": "שאל כל דבר על הקורס הזה...",
+    "send": "שלח",
+    "newSession": "שיחה חדשה",
+    "history": "היסטוריית שיחות",
+    "thinking": "חושב...",
+    "sessions": "שיחות"
   },
   "homework": {
-    "title": "בדיקת שיעורי בית",
+    "title": "עזרה במטלות",
     "subtitle": "העלה תמונה או PDF של שיעורי הבית לקבלת משוב AI",
-    "selectCourse": "בחר קורס (אופציונלי)",
-    "uploadFile": "העלה קובץ שיעורי בית",
+    "uploadFile": "העלה קובץ מטלה",
     "dragDrop": "גרור ושחרר תמונה או PDF כאן",
-    "check": "בדוק שיעורי בית",
+    "check": "בדוק מטלה",
     "checking": "בודק...",
     "results": {
       "title": "משוב",
@@ -86,44 +218,36 @@
       "correction": "תיקון"
     }
   },
-  "flashcards": {
-    "title": "כרטיסיות",
-    "generate": "צור מהמסמך",
-    "due": "לסקירה היום",
-    "showAnswer": "הצג תשובה",
-    "quality": {
-      "again": "שוב",
-      "hard": "קשה",
-      "good": "טוב",
-      "easy": "קל"
-    },
-    "empty": "אין כרטיסיות עדיין. צור מהמסמכים שלך!"
+  "examAnalysis": {
+    "title": "ניתוח מבחן",
+    "uploadExam": "העלה את המבחן שלך",
+    "uploadHint": "העלה מבחן פתור (PDF או תמונה) לניתוח מפורט לפי נושאים",
+    "uploadReference": "מבחן עזר (אופציונלי)",
+    "uploadReferenceHint": "העלה את המבחן המקורי או פתרון מודל להשוואה",
+    "dragDrop": "גרור ושחרר כאן, או לחץ לבחירה",
+    "guidancePlaceholder": "הכוון את הניתוח (למשל 'התמקד בשגיאות החישוב שלי', 'השווה למבחן עזר')",
+    "experience": "חוויית המבחן שלך (אופציונלי)",
+    "experiencePlaceholder": "תאר איך המבחן הלך — ניהול זמן, שאלות קשות, איך הרגשת...",
+    "analyze": "נתח מבחן",
+    "analyzing": "מנתח...",
+    "noFile": "אנא העלה קובץ מבחן תחילה",
+    "savedToProfile": "הניתוח נשמר לפרופיל הלמידה שלך",
+    "results": "תוצאות הניתוח",
+    "comingSoon": "ניתוח מבחן מלא בקרוב. העלה את המבחן שלך כדי להתחיל."
   },
-  "quizzes": {
-    "title": "חידונים",
-    "generate": "צור חידון",
-    "topic": "נושא (אופציונלי)",
-    "count": "מספר שאלות",
-    "mode": {
-      "practice": "תרגול",
-      "exam": "מצב מבחן"
-    },
-    "start": "התחל חידון",
-    "submit": "שלח תשובות",
-    "score": "ציון",
-    "empty": "אין חידונים עדיין",
-    "question": "שאלה",
-    "yourAnswer": "תשובתך",
-    "feedback": "משוב"
-  },
-  "chat": {
-    "title": "צ'אט",
-    "placeholder": "שאל שאלה...",
-    "send": "שלח",
-    "newSession": "שיחה חדשה",
-    "selectCourse": "בחר קורס (אופציונלי)",
-    "history": "היסטוריית שיחות",
-    "thinking": "חושב..."
+  "diagnosis": {
+    "title": "אבחון מצב",
+    "subtitle": "פרופיל הלמידה שלך בקורס זה",
+    "stats": "סטטיסטיקות קורס",
+    "topicBreakdown": "נושאים שנלמדו",
+    "noData": "אין נתוני למידה עדיין לקורס זה. התחל ללמוד כדי לראות את ההתקדמות שלך!",
+    "strength": "רמה",
+    "documents": "מסמכים",
+    "flashcards": "כרטיסיות",
+    "dueFlashcards": "לסקירה",
+    "quizzes": "בחנים שנלקחו",
+    "avgScore": "ציון ממוצע",
+    "eventCount": "אינטראקציות"
   },
   "progress": {
     "title": "התקדמות",
@@ -135,21 +259,15 @@
     "topicBreakdown": "ביצועים לפי נושא",
     "noData": "אין נתונים עדיין. התחל ללמוד!"
   },
-  "exams": {
-    "title": "מבחנים",
-    "upload": "העלה מבחן",
-    "analyze": "נתח",
-    "type": {
-      "reference": "מבחן עזר",
-      "submission": "ההגשה שלי"
-    },
-    "empty": "לא הועלו מבחנים עדיין"
-  },
-  "transcripts": {
-    "title": "תמלולים",
-    "upload": "העלה תמלול",
-    "summarize": "סכם",
-    "empty": "אין תמלולים עדיין"
+  "recommendations": {
+    "title": "המלצות לימוד",
+    "subtitle": "בהתבסס על נושאי המבחן והיסטוריית הלמידה שלך",
+    "noData": "אין המלצות עדיין. העלה מבחנים ישנים ולמד נושאים נוספים לקבלת המלצות מותאמות אישית.",
+    "urgency": {
+      "high": "עדיפות גבוהה",
+      "medium": "עדיפות בינונית",
+      "low": "עדיפות נמוכה"
+    }
   },
   "settings": {
     "title": "הגדרות",
@@ -158,22 +276,22 @@
     "institution": "מוסד לימודים",
     "yearOfStudy": "שנת לימודים",
     "language": "שפה",
+    "teachingStyle": "סגנון הוראה",
+    "teachingStyleHint": "כיצד ה-AI צריך לתקשר איתך?",
+    "styleNotes": "הוראות נוספות (אופציונלי)",
+    "styleNotesPlaceholder": "למשל 'השתמש בהסברים אינטואיטיביים', 'דלג על הוכחות ארוכות', 'תמיד הצג יחידות'",
     "explanationStyle": "סגנון הסבר",
     "styles": {
+      "direct": "ישיר",
+      "directDesc": "תיקונים מיידיים, דיוק על פני עידוד",
+      "balanced": "מאוזן",
+      "balancedDesc": "שילוב של עידוד ותיקון ברור",
+      "supportive": "תומך",
+      "supportiveDesc": "התחל בעידוד, תקן בעדינות",
       "stepByStep": "שלב אחר שלב",
       "concise": "תמציתי",
       "intuitive": "אינטואיטיבי"
     },
     "saved": "הפרופיל נשמר!"
-  },
-  "dashboard": {
-    "title": "לוח בקרה",
-    "welcome": "ברוך השב!",
-    "recentActivity": "פעילות אחרונה",
-    "quickStats": "סטטיסטיקות מהירות"
-  },
-  "schedule": {
-    "title": "לוח זמנים",
-    "comingSoon": "מתכנן לוח הלימודים יגיע בשלב 2."
   }
 }

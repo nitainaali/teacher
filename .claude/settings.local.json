@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(npx tsc --noEmit --skipLibCheck)",
+      "Bash(./node_modules/.bin/tsc --noEmit --skipLibCheck)",
+      "Bash(node -e \"require\\(''fs''\\).writeFileSync\\(''C:/Users/nitai/test_node.txt'', ''node works'', ''utf8''\\); console.log\\(''ok''\\);\")",
+      "Bash(python -c \":*)",
+      "Bash(python \"C:/Users/nitai/AppData/Local/Temp/wp1.py\")",
+      "Bash(node -e 'require\\(\"\"fs\"\"\\).writeFileSync\\(\"\"C:/Users/nitai/test_node.txt\"\", \"\"hello ${world} test \\\\x27quoted\\\\x27\"\"\\)')",
+      "Bash(node -e ':*)",
+      "Bash(node -e 'const fs = require\\(\"\"fs\"\"\\); fs.writeFileSync\\(\"\"C:/Users/nitai/test2.txt\"\", \"\"line1\\\\nline2\\\\n\"\" + \"\"it works\"\"\\); console.log\\(\"\"ok\"\"\\)')",
+      "Bash(node -e 'console.log\\(\"\"const { t } = useTranslation\\(\\);\"\"\\)')",
+      "Bash(node -e 'console.log\\([\"\"a\"\",\"\"b\\\\x27s\"\",\"\"c\"\"].join\\(\"\"\\\\n\"\"\\)\\)')",
+      "Bash(python -c \"print\\(open\\(r''C:/Users/nitai/test3.txt''\\).read\\(\\)\\)\")",
+      "Bash(node -e 'console.log\\(\"\"test \\\\x60 backtick in single-quoted string\"\"\\)')",
+      "Bash(node -e 'console.log\\(\"\"test\\\\x60${foo}\\\\x60 template literal\"\"\\)')",
+      "Bash(npm run build)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(dir \"C:\\\\Users\\\\nitai\\\\projects\\\\teacher\\\\.claude\\\\worktrees\\\\serene-hoover\\\\frontend\")",
+      "Bash(npm install --silent)",
+      "Bash(npx vite build)",
+      "Bash(git add -A)"
+    ]
+  }
+}

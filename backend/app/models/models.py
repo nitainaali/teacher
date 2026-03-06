@@ -78,6 +78,10 @@ class Flashcard(Base):
     repetitions: Mapped[int] = mapped_column(Integer, default=0)
     next_review_date: Mapped[date] = mapped_column(Date, server_default=func.current_date())
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # FSRS-4.5 fields (replaces SM-2 for scheduling)
+    stability: Mapped[float] = mapped_column(Float, default=0.0)
+    difficulty_fsrs: Mapped[float] = mapped_column(Float, default=0.3)
+    fsrs_state: Mapped[str] = mapped_column(String(20), default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course"] = relationship("Course", back_populates="flashcards")
@@ -152,6 +156,8 @@ class StudentProfile(Base):
     institution: Mapped[str | None] = mapped_column(Text)
     year_of_study: Mapped[int | None] = mapped_column(Integer)
     preferences: Mapped[dict | None] = mapped_column(JSONB)
+    teaching_style: Mapped[str] = mapped_column(String(20), default="balanced")  # direct|balanced|supportive
+    style_notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

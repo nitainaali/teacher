@@ -30,6 +30,9 @@ export interface Flashcard {
   repetitions: number;
   next_review_date: string;
   last_reviewed_at: string | null;
+  stability: number;
+  difficulty_fsrs: number;
+  fsrs_state: string;
   created_at: string;
 }
 
@@ -83,6 +86,8 @@ export interface StudentProfile {
   institution: string | null;
   year_of_study: number | null;
   preferences: Record<string, unknown> | null;
+  teaching_style: string;
+  style_notes: string | null;
   created_at: string;
 }
 
@@ -111,4 +116,13 @@ export interface HomeworkFeedback {
   errors: Array<{ step: string; description: string; correction: string }>;
   strengths: string[];
   suggestions: string[];
+}
+
+export interface Recommendation {
+  topic: string;
+  urgency: number;
+  urgency_level: "high" | "medium" | "low";
+  reason: string;
+  strength: number;
+  importance: number;
 }

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule
+from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule, learning
 
 app = FastAPI(title="AI Tutor API", version="1.0.0")
 
@@ -25,6 +25,7 @@ app.include_router(progress.router)
 app.include_router(exams.router)
 app.include_router(transcripts.router)
 app.include_router(schedule.router)
+app.include_router(learning.router)
 
 
 @app.get("/health")

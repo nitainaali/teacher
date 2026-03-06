@@ -79,13 +79,16 @@ class FlashcardOut(BaseModel):
     repetitions: int
     next_review_date: date
     last_reviewed_at: Optional[datetime]
+    stability: float = 0.0
+    difficulty_fsrs: float = 0.3
+    fsrs_state: str = "new"
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class FlashcardReviewRequest(BaseModel):
-    quality: int  # 0-5 SM-2 quality
+    quality: int  # 0=Again, 1=Hard, 2=Good, 3=Easy
 
 
 # ── Quizzes ───────────────────────────────────────────────────────────────────
@@ -96,6 +99,8 @@ class QuizGenerateRequest(BaseModel):
     count: int = 5
     knowledge_mode: str = "general"
     mode: str = "practice"
+    difficulty: str = "medium"  # easy | medium | hard
+    question_type: str = "mixed"  # multiple_choice | free_text | mixed
 
 
 class QuizQuestionOut(BaseModel):
@@ -171,6 +176,8 @@ class StudentProfileUpsert(BaseModel):
     institution: Optional[str] = None
     year_of_study: Optional[int] = None
     preferences: Optional[dict] = None
+    teaching_style: Optional[str] = None  # direct|balanced|supportive
+    style_notes: Optional[str] = None
 
 
 class StudentProfileOut(BaseModel):
@@ -179,6 +186,8 @@ class StudentProfileOut(BaseModel):
     institution: Optional[str]
     year_of_study: Optional[int]
     preferences: Optional[dict]
+    teaching_style: str = "balanced"
+    style_notes: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
