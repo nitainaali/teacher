@@ -18,9 +18,10 @@ async def generate(
     document_id: str,
     course_id: str,
     count: int = 10,
+    card_type: str = "mixed",
     db: AsyncSession = Depends(get_db),
 ):
-    cards = await generate_flashcards(db, document_id, course_id, count)
+    cards = await generate_flashcards(db, document_id, course_id, count, card_type)
     await db.commit()
     return cards
 

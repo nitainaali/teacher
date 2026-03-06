@@ -8,10 +8,15 @@ export const getFlashcards = (courseId?: string, dueOnly = false) => {
   return client.get<Flashcard[]>("/api/flashcards/", { params }).then((r) => r.data);
 };
 
-export const generateFlashcards = (documentId: string, courseId: string, count = 10) =>
+export const generateFlashcards = (
+  documentId: string,
+  courseId: string,
+  count = 10,
+  cardType = "mixed"
+) =>
   client
     .post<Flashcard[]>("/api/flashcards/generate", null, {
-      params: { document_id: documentId, course_id: courseId, count },
+      params: { document_id: documentId, course_id: courseId, count, card_type: cardType },
     })
     .then((r) => r.data);
 

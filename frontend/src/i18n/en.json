@@ -2,20 +2,6 @@
   "app": {
     "title": "AI Tutor"
   },
-  "nav": {
-    "dashboard": "Dashboard",
-    "courses": "Courses",
-    "documents": "Documents",
-    "homework": "Homework Checker",
-    "flashcards": "Flashcards",
-    "quizzes": "Quizzes",
-    "exams": "Exams",
-    "transcripts": "Transcripts",
-    "progress": "Progress",
-    "chat": "Chat",
-    "settings": "Settings",
-    "schedule": "Schedule"
-  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred",
@@ -31,12 +17,40 @@
     "yes": "Yes",
     "no": "No",
     "comingSoon": "Coming Soon",
-    "notImplemented": "This feature is coming in a future update."
+    "notImplemented": "This feature is coming in a future update.",
+    "start": "Start",
+    "generate": "Generate",
+    "analyze": "Analyze",
+    "send": "Send"
   },
   "knowledgeMode": {
     "label": "Knowledge source",
     "general": "General knowledge",
     "courseOnly": "Course materials only"
+  },
+  "tabs": {
+    "newCourse": "New Course",
+    "courseName": "Course name",
+    "courseColor": "Color",
+    "createCourse": "Create Course",
+    "namePlaceholder": "e.g. Signals and Systems"
+  },
+  "welcome": {
+    "title": "Welcome to AI Tutor",
+    "subtitle": "Your personal AI-powered study companion for electrical engineering.",
+    "createFirst": "Create First Course",
+    "description": "Get started by creating your first course. You can then upload materials, chat with AI, generate flashcards, and much more."
+  },
+  "sidebar": {
+    "knowledge": "Internal Knowledge",
+    "learning": "Learning",
+    "summary": "Topic Summary",
+    "flashcards": "Flashcards",
+    "quizzes": "Quizzes",
+    "chat": "Ask a Question",
+    "homework": "Homework Help",
+    "exam": "Exam Analysis",
+    "diagnosis": "Status Diagnosis"
   },
   "courses": {
     "title": "Courses",
@@ -48,28 +62,140 @@
     "namePlaceholder": "e.g. Signals and Systems",
     "descriptionPlaceholder": "Optional description"
   },
-  "documents": {
-    "title": "Upload Document",
-    "docType": "Document type",
+  "knowledge": {
+    "title": "Internal Knowledge",
+    "addFile": "Add File",
+    "empty": "No files yet.",
+    "emptyHint": "Upload your course materials to get started — lecture notes, exams, transcripts, and more.",
+    "contentCategory": "Content type",
+    "fileFormat": "Format",
+    "uploading": "Uploading...",
+    "uploadSuccess": "File uploaded successfully",
+    "dragDrop": "Drag & drop a file here, or click to select",
+    "formats": {
+      "pdf": "PDF",
+      "image": "Image"
+    },
     "types": {
       "lecture": "Lecture notes",
-      "homework": "Homework",
+      "summary": "Summary",
       "exam": "Exam",
-      "transcript": "Transcript",
-      "reference": "Reference"
+      "transcript": "Lecture transcript",
+      "reference": "Reference material"
     },
-    "selectCourse": "Select course",
-    "dragDrop": "Drag & drop a PDF here, or click to select",
-    "processing": "Processing...",
-    "done": "Done",
-    "error": "Error",
-    "pending": "Pending",
-    "uploadSuccess": "Document uploaded successfully"
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing...",
+      "done": "Ready",
+      "error": "Error"
+    }
+  },
+  "learning": {
+    "title": "Learning",
+    "subtitle": "Choose what you want to study",
+    "summary": "Topic Summary",
+    "summaryDesc": "Get a comprehensive summary of any topic from your course materials",
+    "flashcards": "Flashcards",
+    "flashcardsDesc": "Review with smart spaced-repetition flashcards",
+    "quizzes": "Quizzes",
+    "quizzesDesc": "Test your knowledge with AI-generated quizzes"
+  },
+  "topicSummary": {
+    "title": "Topic Summary",
+    "selectTopic": "Select a topic to summarize",
+    "noTopics": "No topics tracked yet. Start studying to build your topic history.",
+    "guidancePlaceholder": "Optional: guide the summary (e.g. 'focus on formulas', 'explain intuitively')",
+    "summarize": "Summarize",
+    "summarizing": "Generating summary...",
+    "chatPlaceholder": "Ask a follow-up question about this topic..."
+  },
+  "flashcards": {
+    "title": "Flashcards",
+    "generate": "Generate from document",
+    "due": "Due today",
+    "showAnswer": "Show answer",
+    "quality": {
+      "again": "Again",
+      "hard": "Hard",
+      "good": "Good",
+      "easy": "Easy"
+    },
+    "empty": "No flashcards yet. Generate some from your documents!",
+    "complete": "Session complete!",
+    "completeSubtitle": "All cards reviewed. Great work!",
+    "config": {
+      "title": "Flashcard Session Setup",
+      "cardType": "Card type",
+      "mixed": "All types",
+      "comprehension": "Comprehension",
+      "memorization": "Memorization",
+      "application": "Application",
+      "sessionLength": "Session length",
+      "cards5": "5 cards",
+      "cards10": "10 cards",
+      "cards20": "20 cards",
+      "cardsAll": "All due cards",
+      "difficulty": "Difficulty filter",
+      "diffAll": "All",
+      "diffEasy": "Easy",
+      "diffMedium": "Medium",
+      "diffHard": "Hard",
+      "startSession": "Start Session",
+      "generateNew": "Generate New Cards",
+      "generateTitle": "Generate New Flashcards",
+      "selectDocument": "Select document",
+      "document": "Document",
+      "cardCount": "Number of cards",
+      "count": "Number of cards",
+      "noDocs": "No documents available. Upload materials first.",
+      "generate": "Generate Cards"
+    }
+  },
+  "quizzes": {
+    "title": "Quizzes",
+    "generate": "Generate quiz",
+    "topic": "Topic (optional)",
+    "count": "Number of questions",
+    "questions": "questions",
+    "mode": {
+      "practice": "Practice",
+      "exam": "Exam mode"
+    },
+    "start": "Start quiz",
+    "submit": "Submit answers",
+    "score": "Score",
+    "empty": "No quizzes yet",
+    "question": "Question",
+    "yourAnswer": "Your answer",
+    "feedback": "Feedback",
+    "config": {
+      "title": "Quiz Setup",
+      "questionType": "Question type",
+      "mixed": "Mixed",
+      "multipleChoice": "Multiple choice",
+      "freeText": "Free text",
+      "difficulty": "Difficulty",
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard",
+      "topicPlaceholder": "Filter by topic (optional)",
+      "topicLabel": "Topic",
+      "createQuiz": "Create Quiz",
+      "history": "Previous quizzes"
+    }
+  },
+  "chat": {
+    "title": "Ask a Question",
+    "placeholder": "Ask anything about this course...",
+    "send": "Send",
+    "newSession": "New session",
+    "history": "Chat history",
+    "thinking": "Thinking...",
+    "sessions": "Sessions"
   },
   "homework": {
-    "title": "Homework Checker",
+    "title": "Homework Help",
     "subtitle": "Upload a photo or PDF of your homework for AI feedback",
-    "selectCourse": "Select course (optional)",
     "uploadFile": "Upload homework file",
     "dragDrop": "Drag & drop an image or PDF here",
     "check": "Check Homework",
@@ -86,44 +212,31 @@
       "correction": "Correction"
     }
   },
-  "flashcards": {
-    "title": "Flashcards",
-    "generate": "Generate from document",
-    "due": "Due today",
-    "showAnswer": "Show answer",
-    "quality": {
-      "again": "Again",
-      "hard": "Hard",
-      "good": "Good",
-      "easy": "Easy"
-    },
-    "empty": "No flashcards yet. Generate some from your documents!"
+  "examAnalysis": {
+    "title": "Exam Analysis",
+    "uploadExam": "Upload your exam",
+    "uploadHint": "Upload a solved exam (PDF or image) to get detailed analysis",
+    "uploadReference": "Upload reference exam (optional)",
+    "dragDrop": "Drag & drop here, or click to select",
+    "guidancePlaceholder": "Guide the analysis (e.g. 'focus on my calculation errors', 'compare to reference')",
+    "analyze": "Analyze Exam",
+    "analyzing": "Analyzing...",
+    "noFile": "Please upload an exam file first",
+    "comingSoon": "Full exam analysis coming soon. Upload your exam to begin."
   },
-  "quizzes": {
-    "title": "Quizzes",
-    "generate": "Generate quiz",
-    "topic": "Topic (optional)",
-    "count": "Number of questions",
-    "mode": {
-      "practice": "Practice",
-      "exam": "Exam mode"
-    },
-    "start": "Start quiz",
-    "submit": "Submit answers",
-    "score": "Score",
-    "empty": "No quizzes yet",
-    "question": "Question",
-    "yourAnswer": "Your answer",
-    "feedback": "Feedback"
-  },
-  "chat": {
-    "title": "Chat",
-    "placeholder": "Ask a question...",
-    "send": "Send",
-    "newSession": "New session",
-    "selectCourse": "Select course (optional)",
-    "history": "Chat history",
-    "thinking": "Thinking..."
+  "diagnosis": {
+    "title": "Status Diagnosis",
+    "subtitle": "Your learning profile for this course",
+    "stats": "Course Statistics",
+    "topicBreakdown": "Topics Studied",
+    "noData": "No learning data yet for this course. Start studying to see your progress!",
+    "strength": "Strength",
+    "documents": "Documents",
+    "flashcards": "Flashcards",
+    "dueFlashcards": "Due for review",
+    "quizzes": "Quizzes taken",
+    "avgScore": "Average score",
+    "eventCount": "Interactions"
   },
   "progress": {
     "title": "Progress",
@@ -134,22 +247,6 @@
     "avgScore": "Average score",
     "topicBreakdown": "Performance by topic",
     "noData": "No data yet. Start studying!"
-  },
-  "exams": {
-    "title": "Exams",
-    "upload": "Upload exam",
-    "analyze": "Analyze",
-    "type": {
-      "reference": "Reference exam",
-      "submission": "My submission"
-    },
-    "empty": "No exams uploaded yet"
-  },
-  "transcripts": {
-    "title": "Transcripts",
-    "upload": "Upload transcript",
-    "summarize": "Summarize",
-    "empty": "No transcripts yet"
   },
   "settings": {
     "title": "Settings",
@@ -165,15 +262,5 @@
       "intuitive": "Intuitive"
     },
     "saved": "Profile saved!"
-  },
-  "dashboard": {
-    "title": "Dashboard",
-    "welcome": "Welcome back!",
-    "recentActivity": "Recent activity",
-    "quickStats": "Quick stats"
-  },
-  "schedule": {
-    "title": "Schedule",
-    "comingSoon": "Study schedule planner coming soon in Phase 2."
   }
 }

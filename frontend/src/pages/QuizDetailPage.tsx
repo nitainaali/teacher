@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getQuiz, submitQuiz } from "../api/quizzes";
 import type { QuizSessionDetail, QuizQuestion } from "../types";
 
 export function QuizDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id, courseId } = useParams<{ id: string; courseId: string }>();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const [quiz, setQuiz] = useState<QuizSessionDetail | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -34,6 +35,12 @@ export function QuizDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <button
+        onClick={() => navigate(`/course/${courseId}/learning/quizzes`)}
+        className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1"
+      >
+        ← {t("common.back")}
+      </button>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t("quizzes.title")}</h1>
         {quiz.score !== null && (

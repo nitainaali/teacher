@@ -96,6 +96,8 @@ class QuizGenerateRequest(BaseModel):
     count: int = 5
     knowledge_mode: str = "general"
     mode: str = "practice"
+    difficulty: str = "medium"  # easy | medium | hard
+    question_type: str = "mixed"  # multiple_choice | free_text | mixed
 
 
 class QuizQuestionOut(BaseModel):
