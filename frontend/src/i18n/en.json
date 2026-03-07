@@ -60,7 +60,9 @@
     "color": "Color",
     "empty": "No courses yet. Create your first course!",
     "namePlaceholder": "e.g. Signals and Systems",
-    "descriptionPlaceholder": "Optional description"
+    "descriptionPlaceholder": "Optional description",
+    "editTitle": "Edit Course",
+    "editSave": "Save Changes"
   },
   "knowledge": {
     "title": "Internal Knowledge",
@@ -104,9 +106,12 @@
     "title": "Topic Summary",
     "selectTopic": "Select a topic to summarize",
     "noTopics": "No topics tracked yet. Start studying to build your topic history.",
+    "topicPlaceholder": "Enter any topic (e.g. 'Fourier Transform', 'Op-Amp')",
     "guidancePlaceholder": "Optional: guide the summary (e.g. 'focus on formulas', 'explain intuitively')",
     "summarize": "Summarize",
     "summarizing": "Generating summary...",
+    "suggestedTopics": "Suggested topics from your history",
+    "history": "Previous summaries",
     "chatPlaceholder": "Ask a follow-up question about this topic..."
   },
   "flashcards": {
@@ -123,6 +128,11 @@
     "empty": "No flashcards yet. Generate some from your documents!",
     "complete": "Session complete!",
     "completeSubtitle": "All cards reviewed. Great work!",
+    "deck": {
+      "title": "Cards for Review",
+      "empty": "No cards due right now"
+    },
+    "generateSuccess": "✓ Cards generated! Click the deck to review.",
     "config": {
       "title": "Flashcard Session Setup",
       "cardType": "Card types",
@@ -130,7 +140,7 @@
       "comprehension": "Comprehension",
       "memorization": "Memorization",
       "application": "Application",
-      "tricks": "Tricks & Mnemonics",
+      "tricks": "Tricks",
       "confusion": "True/False",
       "sessionLength": "Session length",
       "cards5": "5 cards",
@@ -146,7 +156,10 @@
       "generateNew": "Generate New Cards",
       "generateTitle": "Generate New Flashcards",
       "selectDocument": "Select document",
-      "document": "Document",
+      "document": "Documents",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "noCardsGenerated": "No flashcards were generated. Make sure the selected documents have finished processing.",
       "cardCount": "Number of cards",
       "count": "Number of cards (20–150)",
       "noDocs": "No documents available. Upload materials first.",

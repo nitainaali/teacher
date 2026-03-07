@@ -16,19 +16,23 @@ router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
 
 @router.post("/generate", response_model=QuizSessionOut, status_code=201)
 async def create_quiz(data: QuizGenerateRequest, db: AsyncSession = Depends(get_db)):
-    session = await generate_quiz(
-        db=db,
-        course_id=data.course_id,
-        topic=data.topic,
-        count=data.count,
-        knowledge_mode=data.knowledge_mode,
-        mode=data.mode,
-        difficulty=data.difficulty,
-        question_type=data.question_type,
-    )
-    await db.commit()
-    await db.refresh(session)
-    return session
+    try:
+        session = await generate_quiz(
+            db=db,
+            course_id=data.course_id,
+            topic=data.topic,
+            count=data.count,
+            knowledge_mode=data.knowledge_mode,
+            mode=data.mode,
+            difficulty=data.difficulty,
+            question_type=data.question_type,
+            language=data.language,
+        )
+        await db.commit()
+        await db.refresh(session)
+        return session
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:300])
 
 
 @router.get("/", response_model=List[QuizSessionOut])

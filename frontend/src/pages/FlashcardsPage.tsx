@@ -9,7 +9,6 @@ import type { Flashcard } from "../types";
 import type { Document } from "../types";
 
 type Mode = "config" | "review";
-type SessionLength = 5 | 10 | 20 | "all";
 
 const ALL_CARD_TYPES = [
   "comprehension",
@@ -21,11 +20,11 @@ const ALL_CARD_TYPES = [
 type CardType = typeof ALL_CARD_TYPES[number];
 
 export function FlashcardsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
 
   const [mode, setMode] = useState<Mode>("config");
-  const [sessionLength, setSessionLength] = useState<SessionLength>(10);
+  const [dueCount, setDueCount] = useState<number | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -33,19 +32,29 @@ export function FlashcardsPage() {
 
   // Generate config
   const [docs, setDocs] = useState<Document[]>([]);
-  const [genDocId, setGenDocId] = useState("");
+  const [genDocIds, setGenDocIds] = useState<Set<string>>(new Set());
   const [genCount, setGenCount] = useState(20);
   const [genCardTypes, setGenCardTypes] = useState<Set<CardType>>(new Set(ALL_CARD_TYPES));
   const [genTopic, setGenTopic] = useState("");
   const [genGuidance, setGenGuidance] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [genSuccess, setGenSuccess] = useState(false);
+
+  const refreshDueCount = () => {
+    if (courseId) {
+      getFlashcards(courseId, true).then((c) => setDueCount(c.length));
+    }
+  };
 
   useEffect(() => {
     if (courseId) {
       getDocuments(courseId).then((ds) => {
         setDocs(ds);
-        if (ds.length > 0) setGenDocId(ds[0].id);
+        // Select all documents by default
+        setGenDocIds(new Set(ds.map((d) => d.id)));
       });
+      refreshDueCount();
     }
   }, [courseId]);
 
@@ -54,8 +63,7 @@ export function FlashcardsPage() {
     setReviewLoading(true);
     try {
       const all = await getFlashcards(courseId, true);
-      const limited = sessionLength === "all" ? all : all.slice(0, sessionLength as number);
-      setCards(limited);
+      setCards(all);
       setIndex(0);
       setFlipped(false);
       setMode("review");
@@ -77,21 +85,30 @@ export function FlashcardsPage() {
   };
 
   const handleGenerate = async () => {
-    if (!courseId || !genDocId) return;
+    if (!courseId || genDocIds.size === 0) return;
     setGenerating(true);
+    setGenError(null);
+    setGenSuccess(false);
     try {
-      // Backend accepts: "mixed" | single type name
-      // If exactly 1 type selected → send that type; otherwise → "mixed"
       const cardTypeParam =
         genCardTypes.size === 1 ? Array.from(genCardTypes)[0] : "mixed";
-      await generateFlashcards(
-        genDocId,
+      const result = await generateFlashcards(
+        Array.from(genDocIds),
         courseId,
         genCount,
         cardTypeParam as string,
         genTopic.trim() || undefined,
         genGuidance.trim() || undefined,
+        i18n.language,
       );
+      if (result.length === 0) {
+        setGenError(t("flashcards.config.noCardsGenerated"));
+      } else {
+        setGenSuccess(true);
+        refreshDueCount();
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "שגיאה ביצירת כרטיסיות");
     } finally {
       setGenerating(false);
     }
@@ -101,7 +118,7 @@ export function FlashcardsPage() {
     setGenCardTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) {
-        if (next.size > 1) next.delete(type); // keep at least 1
+        if (next.size > 1) next.delete(type);
       } else {
         next.add(type);
       }
@@ -109,20 +126,27 @@ export function FlashcardsPage() {
     });
   };
 
+  const toggleDoc = (id: string) => {
+    setGenDocIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllDocs = () => setGenDocIds(new Set(docs.map((d) => d.id)));
+  const deselectAllDocs = () => setGenDocIds(new Set());
+
   const backToConfig = () => {
     setMode("config");
     setCards([]);
     setIndex(0);
     setFlipped(false);
+    refreshDueCount();
   };
 
-  const sessionLengthOptions: { value: SessionLength; label: string }[] = [
-    { value: 5, label: t("flashcards.config.cards5") },
-    { value: 10, label: t("flashcards.config.cards10") },
-    { value: 20, label: t("flashcards.config.cards20") },
-    { value: "all", label: t("flashcards.config.cardsAll") },
-  ];
-
+  // ── Review mode ─────────────────────────────────────────────────────────────
   if (mode === "review") {
     const done = index >= cards.length;
     const current = cards[index];
@@ -195,70 +219,93 @@ export function FlashcardsPage() {
     );
   }
 
+  // ── Config mode — two-column layout ─────────────────────────────────────────
   return (
-    <div className="max-w-xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold">{t("flashcards.config.title")}</h1>
-
-      {/* Recommendations */}
-      {courseId && (
-        <RecommendationsPanel
-          courseId={courseId}
-          onTopicSelect={(topic) => setGenTopic(topic)}
-        />
-      )}
-
-      {/* Session setup */}
-      <div className="bg-gray-800 rounded-xl p-4 space-y-4">
-        <div>
-          <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.sessionLength")}</p>
-          <div className="flex gap-2">
-            {sessionLengthOptions.map(({ value, label }) => (
-              <button
-                key={String(value)}
-                onClick={() => setSessionLength(value)}
-                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  sessionLength === value
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
+    <div className="flex gap-5 items-start">
+      {/* Left sidebar: Deck card + Recommendations */}
+      <div className="w-44 shrink-0 space-y-4">
         <button
           onClick={startSession}
-          disabled={reviewLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
+          disabled={reviewLoading || dueCount === 0}
+          className={`w-full text-left bg-gray-800 rounded-xl p-4 border-2 transition-all ${
+            dueCount && dueCount > 0
+              ? "border-blue-600 hover:border-blue-500 cursor-pointer"
+              : "border-gray-700 opacity-60 cursor-not-allowed"
+          }`}
         >
-          {reviewLoading ? t("common.loading") : t("flashcards.config.startSession")}
+          <div className="text-3xl mb-2">🃏</div>
+          <p className="text-sm font-semibold text-white leading-tight">
+            {t("flashcards.deck.title")}
+          </p>
+          {reviewLoading || dueCount === null ? (
+            <p className="text-xs text-gray-500 mt-1">{t("common.loading")}</p>
+          ) : dueCount === 0 ? (
+            <p className="text-xs text-gray-500 mt-1">{t("flashcards.deck.empty")}</p>
+          ) : (
+            <p className="text-xs text-blue-400 mt-1 font-medium">
+              {dueCount} {t("flashcards.due")}
+            </p>
+          )}
         </button>
+
+        {courseId && (
+          <RecommendationsPanel
+            courseId={courseId}
+            onTopicSelect={(topic) => setGenTopic(topic)}
+          />
+        )}
       </div>
 
-      {/* Generate section */}
-      <div className="bg-gray-800 rounded-xl p-4 space-y-4">
+      {/* Right main: Generate form */}
+      <div className="flex-1 bg-gray-800 rounded-xl p-5 space-y-4">
         <h2 className="text-base font-semibold">{t("flashcards.config.generateTitle")}</h2>
 
+        {/* Documents — multi-select checkboxes */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">
-            {t("flashcards.config.document")}
-          </label>
-          <select
-            value={genDocId}
-            onChange={(e) => setGenDocId(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-          >
-            {docs.length === 0 && (
-              <option value="">{t("flashcards.config.noDocs")}</option>
-            )}
-            {docs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.original_name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm text-gray-400">
+              {t("flashcards.config.document")}
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAllDocs}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {t("flashcards.config.selectAll")}
+              </button>
+              <span className="text-gray-600 text-xs">·</span>
+              <button
+                type="button"
+                onClick={deselectAllDocs}
+                className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
+              >
+                {t("flashcards.config.deselectAll")}
+              </button>
+            </div>
+          </div>
+          {docs.length === 0 ? (
+            <p className="text-sm text-gray-500">{t("flashcards.config.noDocs")}</p>
+          ) : (
+            <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+              {docs.map((d) => (
+                <label
+                  key={d.id}
+                  className="flex items-center gap-2 text-sm cursor-pointer group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={genDocIds.has(d.id)}
+                    onChange={() => toggleDoc(d.id)}
+                    className="accent-blue-500 shrink-0"
+                  />
+                  <span className="text-gray-300 group-hover:text-white transition-colors truncate">
+                    {d.original_name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Count slider */}
@@ -281,7 +328,7 @@ export function FlashcardsPage() {
           </div>
         </div>
 
-        {/* Card types checkboxes */}
+        {/* Card types */}
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.cardType")}</p>
           <div className="flex flex-wrap gap-2">
@@ -326,9 +373,15 @@ export function FlashcardsPage() {
           />
         </div>
 
+        {genSuccess && (
+          <p className="text-green-400 text-sm">{t("flashcards.generateSuccess")}</p>
+        )}
+        {genError && (
+          <p className="text-red-400 text-sm">{genError}</p>
+        )}
         <button
           onClick={handleGenerate}
-          disabled={generating || !genDocId}
+          disabled={generating || genDocIds.size === 0}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
         >
           {generating ? t("common.loading") : t("flashcards.config.generate")}

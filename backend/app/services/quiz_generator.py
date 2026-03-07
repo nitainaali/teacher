@@ -16,6 +16,7 @@ async def generate_quiz(
     mode: str,
     difficulty: str = "medium",
     question_type: str = "mixed",
+    language: str = "en",
 ) -> QuizSession:
     session = QuizSession(
         course_id=course_id,
@@ -60,6 +61,7 @@ async def generate_quiz(
         course_id=course_id,
         max_tokens=3000,
         extra_system=extra_system,
+        language=language,
     )
 
     questions_data = _parse_json_array(response)

@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule, learning
@@ -13,6 +14,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler — ensures a proper JSON response is always sent.
+    Without this, unhandled exceptions can drop the TCP connection before
+    a response is sent, causing axios to report 'Network Error'."""
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)[:300]},
+    )
+
 
 app.include_router(courses.router)
 app.include_router(documents.router)

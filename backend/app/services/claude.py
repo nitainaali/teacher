@@ -19,9 +19,20 @@ ACCURACY RULES — follow these strictly:
 """
 
 
-async def build_system_prompt(db: AsyncSession, course_id: Optional[str] = None) -> str:
+async def build_system_prompt(
+    db: AsyncSession,
+    course_id: Optional[str] = None,
+    language: str = "en",
+) -> str:
     profile_context = await student_intelligence.build_student_context(db, course_id)
-    return f"{BASE_SYSTEM_PROMPT}\n\n{profile_context}"
+    if language == "he":
+        lang_instruction = (
+            "LANGUAGE REQUIREMENT: You MUST respond entirely in Hebrew (עברית). "
+            "All explanations, feedback, summaries, flashcards, quiz questions, and any generated content must be in Hebrew."
+        )
+    else:
+        lang_instruction = "LANGUAGE REQUIREMENT: Respond in English."
+    return f"{BASE_SYSTEM_PROMPT}\n\n{lang_instruction}\n\n{profile_context}"
 
 
 async def complete(
@@ -30,13 +41,14 @@ async def complete(
     course_id: Optional[str] = None,
     max_tokens: int = 2048,
     extra_system: Optional[str] = None,
+    language: str = "en",
 ) -> str:
     """Non-streaming Claude completion with student context injected."""
-    system = await build_system_prompt(db, course_id)
+    system = await build_system_prompt(db, course_id, language=language)
     if extra_system:
         system = f"{system}\n\n{extra_system}"
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,
@@ -52,13 +64,14 @@ async def stream(
     course_id: Optional[str] = None,
     max_tokens: int = 2048,
     extra_system: Optional[str] = None,
+    language: str = "en",
 ) -> AsyncGenerator[str, None]:
     """Streaming Claude completion with student context injected."""
-    system = await build_system_prompt(db, course_id)
+    system = await build_system_prompt(db, course_id, language=language)
     if extra_system:
         system = f"{system}\n\n{extra_system}"
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
     async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,

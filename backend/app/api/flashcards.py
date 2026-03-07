@@ -16,17 +16,37 @@ router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
 @router.post("/generate", response_model=List[FlashcardOut])
 async def generate(
-    document_id: str,
+    document_ids: str,
     course_id: str,
     count: int = 20,
     card_type: str = "mixed",
     topic: Optional[str] = None,
     guidance: Optional[str] = None,
+    language: str = "en",
     db: AsyncSession = Depends(get_db),
 ):
-    cards = await generate_flashcards(db, document_id, course_id, count, card_type, topic, guidance)
-    await db.commit()
-    return cards
+    try:
+        ids = [d.strip() for d in document_ids.split(",") if d.strip()]
+        if not ids:
+            raise HTTPException(status_code=422, detail="No document IDs provided.")
+        per_doc_count = max(5, count // len(ids))
+        all_cards: List[Flashcard] = []
+        errors: List[str] = []
+        for doc_id in ids:
+            try:
+                cards = await generate_flashcards(db, doc_id, course_id, per_doc_count, card_type, topic, guidance, language)
+                all_cards.extend(cards)
+            except Exception as e:
+                errors.append(str(e)[:200])
+        await db.commit()
+        if not all_cards:
+            detail = "; ".join(errors) if errors else "No flashcards were generated. Make sure selected documents finished processing."
+            raise HTTPException(status_code=422, detail=detail)
+        return all_cards
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:300])
 
 
 @router.get("/", response_model=List[FlashcardOut])

@@ -14,7 +14,9 @@ export const uploadExam = (
   form.append("course_id", courseId);
   form.append("exam_type", examType);
   if (referenceExamId) form.append("reference_exam_id", referenceExamId);
-  return client.post<ExamUpload>("/api/exams/upload", form).then((r) => r.data);
+  return client.post<ExamUpload>("/api/exams/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
 };
 
 export const listExams = (courseId?: string) => {
@@ -28,12 +30,14 @@ export async function* streamExamAnalysis(
     guidance?: string;
     studentExperience?: string;
     referenceExamId?: string;
+    language?: string;
   } = {},
 ): AsyncGenerator<string> {
   const form = new FormData();
   if (opts.guidance) form.append("guidance", opts.guidance);
   if (opts.studentExperience) form.append("student_experience", opts.studentExperience);
   if (opts.referenceExamId) form.append("reference_exam_id", opts.referenceExamId);
+  form.append("language", opts.language || "en");
 
   const response = await fetch(`${API_BASE}/api/exams/${examId}/analyze`, {
     method: "POST",
@@ -46,19 +50,22 @@ export async function* streamExamAnalysis(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    const text = decoder.decode(value, { stream: true });
-    for (const line of text.split("\n")) {
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
       if (line.startsWith("data: ")) {
         const chunk = line.slice(6);
         if (chunk === "[DONE]") return;
         if (chunk.startsWith("[ERROR:")) {
           throw new Error(chunk.slice(7, -1));
         }
-        yield chunk;
+        if (chunk) yield chunk;
       }
     }
   }

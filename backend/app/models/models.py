@@ -199,6 +199,18 @@ class ChatMessage(Base):
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
 
 
+class TopicSummary(Base):
+    __tablename__ = "topic_summaries"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    guidance: Mapped[str | None] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 # Phase 2 tables
 class ExamDate(Base):
     __tablename__ = "exam_dates"

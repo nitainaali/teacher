@@ -48,6 +48,7 @@ class DocumentOut(BaseModel):
 class HomeworkCheckRequest(BaseModel):
     course_id: Optional[str] = None
     knowledge_mode: str = "general"  # course_only | general
+    language: str = "en"
 
 
 class HomeworkError(BaseModel):
@@ -101,6 +102,7 @@ class QuizGenerateRequest(BaseModel):
     mode: str = "practice"
     difficulty: str = "medium"  # easy | medium | hard
     question_type: str = "mixed"  # multiple_choice | free_text | mixed
+    language: str = "en"
 
 
 class QuizQuestionOut(BaseModel):
@@ -200,6 +202,26 @@ class ChatMessageRequest(BaseModel):
     session_id: Optional[str] = None
     course_id: Optional[str] = None
     knowledge_mode: str = "general"
+    language: str = "en"
+
+
+class TopicSummaryRequest(BaseModel):
+    course_id: str
+    topic: str
+    guidance: Optional[str] = None
+    language: str = "en"
+
+
+class TopicSummaryOut(BaseModel):
+    id: str
+    course_id: str
+    topic: str
+    content: str
+    guidance: Optional[str]
+    language: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class ChatMessageOut(BaseModel):

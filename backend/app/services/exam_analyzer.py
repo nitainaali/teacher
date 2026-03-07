@@ -16,6 +16,7 @@ async def analyze_exam_stream(
     reference_images_b64: Optional[list[str]] = None,
     guidance: Optional[str] = None,
     student_experience: Optional[str] = None,
+    language: str = "en",
 ) -> AsyncGenerator[str, None]:
     """
     Stream exam analysis as SSE text chunks.
@@ -26,8 +27,6 @@ async def analyze_exam_stream(
 
     content.append({"type": "text", "text": "## Student Exam Submission\nAnalyze the following exam pages:"})
     for i, img_b64 in enumerate(exam_images_b64):
-        media_type = "image/jpeg" if img_b64.startswith("/9j") or img_b64.startswith("iVBOR") else "image/png"
-        # JPEG starts with /9j, PNG starts with iVBOR (base64 of PNG header)
         if img_b64.startswith("/9j"):
             media_type = "image/jpeg"
         else:
@@ -54,38 +53,64 @@ async def analyze_exam_stream(
     guidance_str = f"\n\nSpecial focus: {guidance}" if guidance else ""
     experience_section = ""
     if student_experience:
+        if language == "he":
+            experience_header = "## משוב על ניהול הזמן ואסטרטגיית מבחן"
+        else:
+            experience_header = "## Time Management and Exam Strategy Feedback"
         experience_section = (
             f"\n\n## Student Self-Report\n"
             f"The student described their exam experience as follows:\n{student_experience}\n"
-            "Please include a **משוב על ניהול הזמן ואסטרטגיית מבחן** section based on this."
+            f"Please include a **{experience_header}** section based on this."
         )
 
-    analysis_prompt = (
-        "Analyze this student's exam in detail. Write your analysis in the following markdown structure:\n\n"
-        "## ניתוח לפי נושאים\n"
-        "Create a markdown table:\n"
-        "| נושא | ביצוע | הערות |\n"
-        "|------|-------|-------|\n"
-        "For each topic in the exam: use ✅ for correct/good, ⚠️ for partial, ❌ for incorrect/missing.\n"
-        "Include specific observations in the הערות column.\n\n"
-        "## נקודות חוזקה\n"
-        "Bullet list of what the student did well.\n\n"
-        "## נקודות לשיפור\n"
-        "Bullet list of specific topics/skills that need work.\n\n"
-        "## שגיאות נפוצות\n"
-        "Identify recurring error patterns (e.g., sign errors, unit mistakes, wrong formula choice).\n\n"
-        + ("## משוב על ניהול הזמן ואסטרטגיית מבחן\n" if student_experience else "")
-        + "Use LaTeX for all math: $...$ inline, $$...$$ for display equations.\n"
-        + "Never fabricate analysis — only comment on what you can actually see in the exam."
-        + guidance_str
-        + experience_section
-    )
+    if language == "he":
+        analysis_prompt = (
+            "Analyze this student's exam in detail. Write your analysis in the following markdown structure:\n\n"
+            "## ניתוח לפי נושאים\n"
+            "Create a markdown table:\n"
+            "| נושא | ביצוע | הערות |\n"
+            "|------|-------|-------|\n"
+            "For each topic in the exam: use ✅ for correct/good, ⚠️ for partial, ❌ for incorrect/missing.\n"
+            "Include specific observations in the הערות column.\n\n"
+            "## נקודות חוזקה\n"
+            "Bullet list of what the student did well.\n\n"
+            "## נקודות לשיפור\n"
+            "Bullet list of specific topics/skills that need work.\n\n"
+            "## שגיאות נפוצות\n"
+            "Identify recurring error patterns (e.g., sign errors, unit mistakes, wrong formula choice).\n\n"
+            + ("## משוב על ניהול הזמן ואסטרטגיית מבחן\n" if student_experience else "")
+            + "Use LaTeX for all math: $...$ inline, $$...$$ for display equations.\n"
+            + "Never fabricate analysis — only comment on what you can actually see in the exam."
+            + guidance_str
+            + experience_section
+        )
+    else:
+        analysis_prompt = (
+            "Analyze this student's exam in detail. Write your analysis in the following markdown structure:\n\n"
+            "## Topic Analysis\n"
+            "Create a markdown table:\n"
+            "| Topic | Performance | Notes |\n"
+            "|-------|-------------|-------|\n"
+            "For each topic in the exam: use ✅ for correct/good, ⚠️ for partial, ❌ for incorrect/missing.\n"
+            "Include specific observations in the Notes column.\n\n"
+            "## Strengths\n"
+            "Bullet list of what the student did well.\n\n"
+            "## Areas for Improvement\n"
+            "Bullet list of specific topics/skills that need work.\n\n"
+            "## Common Errors\n"
+            "Identify recurring error patterns (e.g., sign errors, unit mistakes, wrong formula choice).\n\n"
+            + ("## Time Management and Exam Strategy Feedback\n" if student_experience else "")
+            + "Use LaTeX for all math: $...$ inline, $$...$$ for display equations.\n"
+            + "Never fabricate analysis — only comment on what you can actually see in the exam."
+            + guidance_str
+            + experience_section
+        )
+
     content.append({"type": "text", "text": analysis_prompt})
 
     extra_system = (
         "You are analyzing a student's engineering exam with precision. "
         "Be specific and factual. Identify every topic and evaluate performance per topic. "
-        "Use Hebrew for section headers as instructed, but English/Hebrew mixed is fine for technical content. "
         "Never fabricate — only analyze what is visible."
     )
 
@@ -96,19 +121,30 @@ async def analyze_exam_stream(
         from app.core.config import settings
         from app.services.claude import build_system_prompt
 
-        client = _anth.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        system = await build_system_prompt(db, course_id)
+        client = _anth.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+        system = await build_system_prompt(db, course_id, language=language)
         system = f"{system}\n\n{extra_system}"
 
-        async with client.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=4000,
-            system=system,
-            messages=[{"role": "user", "content": content}],
-        ) as stream_ctx:
-            async for text in stream_ctx.text_stream:
-                collected_text.append(text)
-                yield text
+        # Retry once on Anthropic 5xx errors
+        last_exc = None
+        for attempt in range(2):
+            try:
+                async with client.messages.stream(
+                    model="claude-sonnet-4-6",
+                    max_tokens=4000,
+                    system=system,
+                    messages=[{"role": "user", "content": content}],
+                ) as stream_ctx:
+                    async for text in stream_ctx.text_stream:
+                        collected_text.append(text)
+                        yield text
+                return  # success
+            except Exception as e:
+                last_exc = e
+                if attempt == 0:
+                    collected_text.clear()
+                    continue
+                raise
 
     async for chunk in _stream_inner():
         yield chunk
@@ -129,7 +165,7 @@ async def _log_weak_topics(db: AsyncSession, course_id: str, analysis_text: str)
             # Table format: | topic | verdict | notes |
             if len(parts) >= 3:
                 topic = parts[1].strip()
-                if topic and topic not in ("נושא", "---", ""):
+                if topic and topic not in ("נושא", "Topic", "---", ""):
                     event_type = "quiz_wrong" if "❌" in line else "homework_error"
                     try:
                         await student_intelligence.write_learning_event(

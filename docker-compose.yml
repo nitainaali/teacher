@@ -20,11 +20,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - .env
     volumes:
       - ./uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tutor}:${POSTGRES_PASSWORD:-tutor}@db:5432/${POSTGRES_DB:-tutor}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       UPLOAD_DIR: /app/uploads
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:

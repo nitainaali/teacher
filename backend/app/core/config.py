@@ -1,9 +1,9 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
-    anthropic_api_key: str = ""
+    anthropic_api_key: Optional[str] = None  # None → SDK reads ANTHROPIC_API_KEY from env directly
     database_url: str = "postgresql+asyncpg://tutor:tutor@localhost:5432/tutor"
     upload_dir: str = "/app/uploads"
     cors_origins: str = "http://localhost:3000"

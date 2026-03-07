@@ -14,6 +14,7 @@ export const generateQuiz = (data: {
   mode?: string;
   difficulty?: string;
   question_type?: string;
+  language?: string;
 }) => client.post<QuizSession>("/api/quizzes/generate", data).then((r) => r.data);
 
 export const getQuiz = (id: string) =>

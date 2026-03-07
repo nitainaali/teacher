@@ -28,6 +28,7 @@ export async function* streamChatMessageFetch(data: {
   session_id?: string;
   course_id?: string;
   knowledge_mode: string;
+  language?: string;
 }): AsyncGenerator<string> {
   const baseURL = import.meta.env.VITE_API_URL || "";
   const response = await fetch(`${baseURL}/api/chat/message`, {
@@ -36,23 +37,31 @@ export async function* streamChatMessageFetch(data: {
     body: JSON.stringify(data),
   });
 
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`שגיאת שרת (${response.status}): ${errText.slice(0, 300)}`);
+  }
   if (!response.body) return;
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    const text = decoder.decode(value, { stream: true });
-    // Parse SSE format: "data: ...\n\n"
-    const lines = text.split("\n");
+    buffer += decoder.decode(value, { stream: true });
+    // Process complete lines only (SSE format: "data: ...\n\n")
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? ""; // keep incomplete last line in buffer
     for (const line of lines) {
       if (line.startsWith("data: ")) {
         const chunk = line.slice(6);
-        if (chunk !== "[DONE]") {
-          yield chunk;
+        if (chunk === "[DONE]") return;
+        if (chunk.startsWith("[ERROR:")) {
+          throw new Error(chunk.slice(7, -1));
         }
+        if (chunk) yield chunk;
       }
     }
   }

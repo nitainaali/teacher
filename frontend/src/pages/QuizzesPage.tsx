@@ -6,7 +6,7 @@ import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { QuizSession } from "../types";
 
 export function QuizzesPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
 
@@ -19,6 +19,7 @@ export function QuizzesPage() {
   const [topic, setTopic] = useState("");
   const [knowledgeMode, setKnowledgeMode] = useState("general");
   const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   useEffect(() => {
     if (courseId) {
@@ -48,6 +49,7 @@ export function QuizzesPage() {
     e.preventDefault();
     if (!courseId) return;
     setGenerating(true);
+    setGenError(null);
     try {
       const session = await generateQuiz({
         course_id: courseId,
@@ -56,8 +58,11 @@ export function QuizzesPage() {
         knowledge_mode: knowledgeMode,
         question_type: resolveQuestionType(),
         difficulty,
+        language: i18n.language,
       });
       navigate(`/course/${courseId}/learning/quizzes/${session.id}`);
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "שגיאה ביצירת הבחן");
     } finally {
       setGenerating(false);
     }
@@ -178,6 +183,9 @@ export function QuizzesPage() {
           </div>
         </div>
 
+        {genError && (
+          <p className="text-red-400 text-sm">{genError}</p>
+        )}
         <button
           type="submit"
           disabled={generating}

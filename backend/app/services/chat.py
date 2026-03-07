@@ -30,6 +30,7 @@ async def send_message_stream(
     session_id: Optional[str],
     course_id: Optional[str],
     knowledge_mode: str,
+    language: str = "en",
 ) -> AsyncGenerator[str, None]:
     session = await get_or_create_session(db, session_id, course_id, knowledge_mode)
 
@@ -63,6 +64,7 @@ async def send_message_stream(
         course_id=course_id,
         max_tokens=2048,
         extra_system=extra_system,
+        language=language,
     ):
         full_response += token
         yield token

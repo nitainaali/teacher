@@ -79,6 +79,7 @@ async def analyze_exam(
     guidance: Optional[str] = Form(None),
     student_experience: Optional[str] = Form(None),
     reference_exam_id: Optional[str] = Form(None),
+    language: str = Form("en"),
     db: AsyncSession = Depends(get_db),
 ):
     """Stream full exam analysis as SSE. Returns per-topic feedback in markdown."""
@@ -92,7 +93,7 @@ async def analyze_exam(
     if not doc:
         raise HTTPException(404, "Exam document not found")
 
-    exam_images = _file_to_base64_images(doc.file_path)
+    exam_images = _file_to_base64_images(doc.file_path)[:10]  # Cap at 10 pages to avoid Claude API 413
     if not exam_images:
         raise HTTPException(400, "Could not read exam file. Ensure it is a valid PDF or image.")
 
@@ -106,7 +107,7 @@ async def analyze_exam(
             ref_doc_result = await db.execute(select(Document).where(Document.id == ref_exam.document_id))
             ref_doc = ref_doc_result.scalar_one_or_none()
             if ref_doc:
-                reference_images = _file_to_base64_images(ref_doc.file_path)
+                reference_images = _file_to_base64_images(ref_doc.file_path)[:10]  # Cap at 10 pages
 
     async def event_generator():
         try:
@@ -117,6 +118,7 @@ async def analyze_exam(
                 reference_images_b64=reference_images,
                 guidance=guidance,
                 student_experience=student_experience,
+                language=language,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:

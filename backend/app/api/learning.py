@@ -1,20 +1,16 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.database import get_db
+from app.models.models import TopicSummary
+from app.schemas.schemas import TopicSummaryRequest, TopicSummaryOut
 from app.services import claude, rag
 from app.services.recommendations import get_recommendations
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
-
-
-class TopicSummaryRequest(BaseModel):
-    course_id: str
-    topic: str
-    guidance: Optional[str] = None
 
 
 @router.post("/topic-summary")
@@ -44,6 +40,7 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
             f"{guidance_str}"
         )
 
+        full_response = ""
         try:
             async for chunk in claude.stream(
                 db=db,
@@ -51,13 +48,50 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
                 course_id=data.course_id,
                 max_tokens=3000,
                 extra_system=extra_system,
+                language=data.language,
             ):
+                full_response += chunk
                 yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: [ERROR: {str(e)[:100]}]\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        # Auto-save summary to DB after streaming completes
+        try:
+            summary = TopicSummary(
+                course_id=data.course_id,
+                topic=data.topic,
+                content=full_response,
+                guidance=data.guidance,
+                language=data.language,
+            )
+            db.add(summary)
+            await db.commit()
         except Exception:
-            yield "data: [ERROR]\n\n"
+            pass
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/topic-summaries", response_model=List[TopicSummaryOut])
+async def list_topic_summaries(
+    course_id: str,
+    topic: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List saved topic summaries for a course, optionally filtered by topic."""
+    query = (
+        select(TopicSummary)
+        .where(TopicSummary.course_id == course_id)
+        .order_by(TopicSummary.created_at.desc())
+    )
+    if topic:
+        query = query.where(TopicSummary.topic == topic)
+    result = await db.execute(query)
+    return result.scalars().all()
 
 
 @router.get("/recommendations")

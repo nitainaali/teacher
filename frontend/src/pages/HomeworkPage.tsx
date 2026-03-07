@@ -7,61 +7,91 @@ import type { HomeworkFeedback } from "../types";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export function HomeworkPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
   const [knowledgeMode, setKnowledgeMode] = useState<"general" | "course_only">("general");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [checking, setChecking] = useState(false);
   const [rawResponse, setRawResponse] = useState("");
   const [feedback, setFeedback] = useState<HomeworkFeedback | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    setFiles((prev) => {
+      const names = new Set(prev.map((f) => f.name));
+      const newOnes = Array.from(incoming).filter((f) => !names.has(f.name));
+      return [...prev, ...newOnes];
+    });
+  };
+
+  const removeFile = (name: string) =>
+    setFiles((prev) => prev.filter((f) => f.name !== name));
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f) setFile(f);
+    addFiles(e.dataTransfer.files);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (files.length === 0) return;
     setChecking(true);
     setRawResponse("");
     setFeedback(null);
+    setCheckError(null);
+
     const form = new FormData();
-    form.append("file", file);
+    files.forEach((f) => form.append("files", f));
     if (courseId) form.append("course_id", courseId);
     form.append("knowledge_mode", knowledgeMode);
+    form.append("language", i18n.language);
+
     try {
       const response = await fetch(`${API_BASE}/api/homework/check`, {
         method: "POST",
         body: form,
       });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`${response.status}: ${errText.slice(0, 200)}`);
+      }
       if (!response.body) return;
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
+      let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const chunk = line.slice(6);
-            if (chunk !== "[DONE]") {
+            if (chunk === "[DONE]") break;
+            if (chunk.startsWith("[ERROR:")) {
+              throw new Error(chunk.slice(7, -1));
+            }
+            if (chunk) {
               full += chunk;
               setRawResponse(full);
             }
           }
         }
       }
-      const match = full.match(/{[sS]*}/);
+      const match = full.match(/{[\s\S]*}/);
       if (match) {
         try { setFeedback(JSON.parse(match[0])); } catch { /* leave as raw */ }
       }
+    } catch (err) {
+      setCheckError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setChecking(false);
     }
@@ -86,6 +116,7 @@ export function HomeworkPage() {
           </div>
         </div>
 
+        {/* Drop zone */}
         <div
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${dragOver ? "border-blue-500 bg-blue-500/10" : "border-gray-700 hover:border-gray-500"}`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -93,17 +124,37 @@ export function HomeworkPage() {
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
         >
-          <input ref={inputRef} type="file" accept="image/*,.pdf" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); }}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*,.pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
           />
-          {file ? (
-            <p className="text-blue-400 font-medium">{file.name}</p>
-          ) : (
-            <p className="text-gray-500 text-sm">{t("homework.dragDrop")}</p>
-          )}
+          <p className="text-gray-500 text-sm">{t("homework.dragDrop")}</p>
         </div>
 
-        <button type="submit" disabled={!file || checking}
+        {/* Selected files list */}
+        {files.length > 0 && (
+          <div className="space-y-1">
+            {files.map((f) => (
+              <div key={f.name} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                <span className="text-sm text-blue-400 truncate">{f.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(f.name)}
+                  className="text-gray-500 hover:text-red-400 ml-2 text-xs shrink-0"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {checkError && (
+          <p className="text-red-400 text-sm">{checkError}</p>
+        )}
+        <button type="submit" disabled={files.length === 0 || checking}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
         >
           {checking ? t("homework.checking") : t("homework.check")}

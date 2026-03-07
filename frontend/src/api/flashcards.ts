@@ -10,18 +10,20 @@ export const getFlashcards = (courseId?: string, dueOnly = false, topic?: string
 };
 
 export const generateFlashcards = (
-  documentId: string,
+  documentIds: string[],
   courseId: string,
   count = 20,
   cardType = "mixed",
   topic?: string,
   guidance?: string,
+  language = "en",
 ) => {
   const params: Record<string, string | number> = {
-    document_id: documentId,
+    document_ids: documentIds.join(","),
     course_id: courseId,
     count,
     card_type: cardType,
+    language,
   };
   if (topic) params.topic = topic;
   if (guidance) params.guidance = guidance;

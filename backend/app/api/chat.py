@@ -15,14 +15,18 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 @router.post("/message")
 async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
     async def event_generator():
-        async for chunk in send_message_stream(
-            db=db,
-            message=data.message,
-            session_id=data.session_id,
-            course_id=data.course_id,
-            knowledge_mode=data.knowledge_mode,
-        ):
-            yield f"data: {chunk}\n\n"
+        try:
+            async for chunk in send_message_stream(
+                db=db,
+                message=data.message,
+                session_id=data.session_id,
+                course_id=data.course_id,
+                knowledge_mode=data.knowledge_mode,
+                language=data.language,
+            ):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: [ERROR:{str(e)[:200]}]\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

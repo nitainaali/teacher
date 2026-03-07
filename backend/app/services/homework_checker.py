@@ -28,6 +28,7 @@ async def check_homework_stream(
     course_id: Optional[str],
     knowledge_mode: str,
     db: AsyncSession,
+    language: str = "en",
 ) -> AsyncGenerator[str, None]:
     """Stream SSE tokens for homework checking."""
     extra_system = HOMEWORK_PROMPT
@@ -53,6 +54,7 @@ async def check_homework_stream(
         course_id=course_id,
         max_tokens=2048,
         extra_system=extra_system,
+        language=language,
     ):
         full_response += token
         yield token

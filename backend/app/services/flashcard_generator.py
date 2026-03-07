@@ -16,11 +16,14 @@ async def generate_flashcards(
     card_type: str = "mixed",
     topic: Optional[str] = None,
     guidance: Optional[str] = None,
+    language: str = "en",
 ) -> list[Flashcard]:
     result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
-    if not doc or not doc.extracted_text:
-        return []
+    if not doc:
+        raise ValueError(f"Document {document_id} not found")
+    if not doc.extracted_text:
+        raise ValueError(f"Document '{doc.original_name}' has no extracted text yet. Make sure the document finished processing.")
 
     type_instructions = {
         "comprehension": (
@@ -79,6 +82,7 @@ async def generate_flashcards(
         messages=[{"role": "user", "content": prompt}],
         course_id=course_id,
         max_tokens=4000,
+        language=language,
     )
 
     cards_data = _parse_json_array(response)
@@ -107,6 +111,6 @@ def _parse_json_array(text: str) -> list[dict]:
     if match:
         try:
             return json.loads(match.group())
-        except Exception:
-            pass
-    return []
+        except Exception as e:
+            raise ValueError(f"Claude returned malformed JSON: {e}\nResponse: {text[:300]}")
+    raise ValueError(f"Claude response did not contain a JSON array. Response: {text[:300]}")

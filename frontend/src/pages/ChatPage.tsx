@@ -6,7 +6,7 @@ import { MarkdownContent } from "../components/MarkdownContent";
 import type { ChatSession, ChatMessage } from "../types";
 
 export function ChatPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -15,6 +15,7 @@ export function ChatPage() {
   const [knowledgeMode, setKnowledgeMode] = useState<"general" | "course_only">("general");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [chatError, setChatError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadSessions(); }, []);
@@ -49,6 +50,7 @@ export function ChatPage() {
     setInput("");
     setStreaming(true);
     setStreamingText("");
+    setChatError(null);
     let sessionIdFromStream: string | null = null;
     let assistantText = "";
     try {
@@ -57,6 +59,7 @@ export function ChatPage() {
         session_id: activeSessionId ?? undefined,
         course_id: courseId,
         knowledge_mode: knowledgeMode,
+        language: i18n.language,
       })) {
         if (!sessionIdFromStream && chunk.startsWith("[SESSION_ID:")) {
           sessionIdFromStream = chunk.slice(12, -1);
@@ -66,6 +69,8 @@ export function ChatPage() {
         assistantText += chunk;
         setStreamingText(assistantText);
       }
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "שגיאה בשליחת ההודעה");
     } finally {
       setStreaming(false);
       setStreamingText("");
@@ -153,6 +158,11 @@ export function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
+        {chatError && (
+          <div className="px-4 py-2 bg-red-900/30 border-t border-red-700 text-red-400 text-xs">
+            {chatError}
+          </div>
+        )}
         <form onSubmit={handleSend} className="px-4 py-3 border-t border-gray-700 flex gap-2">
           <input value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={t("chat.placeholder")} disabled={streaming}

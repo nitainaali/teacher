@@ -4,6 +4,9 @@ import { getCourses } from "../api/courses";
 import { uploadDocument } from "../api/documents";
 import type { Course } from "../types";
 
+type FileStatus = "pending" | "uploading" | "done" | "error";
+interface FileEntry { file: File; status: FileStatus; }
+
 const DOC_TYPES = ["lecture", "homework", "exam", "transcript", "reference"] as const;
 
 export function DocumentUploadPage() {
@@ -11,8 +14,8 @@ export function DocumentUploadPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("");
   const [docType, setDocType] = useState<string>("lecture");
-  const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
+  const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -23,31 +26,58 @@ export function DocumentUploadPage() {
     });
   }, []);
 
-  const handleFile = (f: File) => setFile(f);
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    setEntries((prev) => {
+      const names = new Set(prev.map((e) => e.file.name));
+      const newOnes = Array.from(incoming)
+        .filter((f) => !names.has(f.name))
+        .map((f): FileEntry => ({ file: f, status: "pending" }));
+      return [...prev, ...newOnes];
+    });
+  };
+
+  const removeEntry = (name: string) =>
+    setEntries((prev) => prev.filter((e) => e.file.name !== name));
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
+    addFiles(e.dataTransfer.files);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !courseId) return;
-    setStatus("uploading");
-    try {
-      await uploadDocument(file, courseId, docType);
-      setStatus("done");
-      setFile(null);
-    } catch {
-      setStatus("error");
+    if (entries.length === 0 || !courseId) return;
+    setUploading(true);
+    for (const entry of entries.filter((en) => en.status === "pending")) {
+      setEntries((prev) =>
+        prev.map((en) => en.file.name === entry.file.name ? { ...en, status: "uploading" } : en)
+      );
+      try {
+        await uploadDocument(entry.file, courseId, docType);
+        setEntries((prev) =>
+          prev.map((en) => en.file.name === entry.file.name ? { ...en, status: "done" } : en)
+        );
+      } catch {
+        setEntries((prev) =>
+          prev.map((en) => en.file.name === entry.file.name ? { ...en, status: "error" } : en)
+        );
+      }
     }
+    setUploading(false);
+  };
+
+  const statusIcon = (s: FileStatus) => {
+    if (s === "pending") return <span className="text-gray-500 text-xs">⏳</span>;
+    if (s === "uploading") return <span className="text-blue-400 text-xs animate-pulse">↑</span>;
+    if (s === "done") return <span className="text-green-400 text-xs">✓</span>;
+    return <span className="text-red-400 text-xs">✗</span>;
   };
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{t("documents.title")}</h1>
+      <h1 className="text-2xl font-bold mb-6">{t("knowledge.title")}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
@@ -78,6 +108,7 @@ export function DocumentUploadPage() {
           </select>
         </div>
 
+        {/* Drop zone — multi-file */}
         <div
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
             dragOver ? "border-blue-500 bg-blue-500/10" : "border-gray-700 hover:border-gray-500"
@@ -90,30 +121,41 @@ export function DocumentUploadPage() {
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf"
+            accept=".pdf,image/*"
+            multiple
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            onChange={(e) => addFiles(e.target.files)}
           />
-          {file ? (
-            <p className="text-blue-400 font-medium">{file.name}</p>
-          ) : (
-            <p className="text-gray-500 text-sm">{t("documents.dragDrop")}</p>
-          )}
+          <p className="text-gray-500 text-sm">{t("knowledge.dragDrop")}</p>
         </div>
 
-        {status === "done" && (
-          <p className="text-green-400 text-sm">{t("documents.uploadSuccess")}</p>
-        )}
-        {status === "error" && (
-          <p className="text-red-400 text-sm">{t("common.error")}</p>
+        {/* File list with status indicators */}
+        {entries.length > 0 && (
+          <div className="space-y-1">
+            {entries.map((en) => (
+              <div key={en.file.name} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {statusIcon(en.status)}
+                  <span className="text-sm text-gray-200 truncate">{en.file.name}</span>
+                </div>
+                {en.status === "pending" && (
+                  <button
+                    type="button"
+                    onClick={() => removeEntry(en.file.name)}
+                    className="text-gray-500 hover:text-red-400 text-xs ml-2 shrink-0"
+                  >✕</button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
         <button
           type="submit"
-          disabled={!file || !courseId || status === "uploading"}
+          disabled={entries.length === 0 || !courseId || uploading}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
         >
-          {status === "uploading" ? t("common.loading") : t("common.upload")}
+          {uploading ? t("common.loading") : t("common.upload")}
         </button>
       </form>
     </div>

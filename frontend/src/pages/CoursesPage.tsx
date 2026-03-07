@@ -1,19 +1,97 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { getCourses, createCourse, deleteCourse } from "../api/courses";
+import { getCourses, createCourse, updateCourse, deleteCourse } from "../api/courses";
 import type { Course } from "../types";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+/** Inline color-picker + name fields, shared between create and edit forms */
+function CourseForm({
+  name, setName, description, setDescription, color, setColor,
+  onSubmit, onCancel, saving, submitLabel,
+}: {
+  name: string; setName: (v: string) => void;
+  description: string; setDescription: (v: string) => void;
+  color: string; setColor: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  saving: boolean;
+  submitLabel: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <form onSubmit={onSubmit} className="bg-gray-800 rounded-xl p-5 mb-6 space-y-4">
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">{t("courses.name")}</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("courses.namePlaceholder")}
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">{t("courses.description")}</label>
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t("courses.descriptionPlaceholder")}
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">{t("courses.color")}</label>
+        <div className="flex gap-2">
+          {COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setColor(c)}
+              className={`w-7 h-7 rounded-full transition-transform ${color === c ? "scale-125 ring-2 ring-white" : ""}`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={saving || !name.trim()}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          {saving ? t("common.loading") : submitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          {t("common.cancel")}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export function CoursesPage() {
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Create form
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(COLORS[0]);
   const [saving, setSaving] = useState(false);
+
+  // Edit modal
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editColor, setEditColor] = useState(COLORS[0]);
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -37,6 +115,30 @@ export function CoursesPage() {
     }
   };
 
+  const openEdit = (course: Course) => {
+    setEditingCourse(course);
+    setEditName(course.name);
+    setEditDescription(course.description || "");
+    setEditColor(course.color || COLORS[0]);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCourse || !editName.trim()) return;
+    setEditSaving(true);
+    try {
+      await updateCourse(editingCourse.id, {
+        name: editName,
+        description: editDescription,
+        color: editColor,
+      });
+      setEditingCourse(null);
+      load();
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     await deleteCourse(id);
     load();
@@ -47,67 +149,51 @@ export function CoursesPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t("courses.title")}</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { setShowForm(!showForm); setEditingCourse(null); }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           {t("courses.create")}
         </button>
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="bg-gray-800 rounded-xl p-5 mb-6 space-y-4"
+      {/* Edit modal overlay */}
+      {editingCourse && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setEditingCourse(null); }}
         >
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">{t("courses.name")}</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("courses.namePlaceholder")}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-700">
+            <h2 className="text-lg font-semibold mb-4">{t("courses.editTitle")}</h2>
+            <CourseForm
+              name={editName}
+              setName={setEditName}
+              description={editDescription}
+              setDescription={setEditDescription}
+              color={editColor}
+              setColor={setEditColor}
+              onSubmit={handleEdit}
+              onCancel={() => setEditingCourse(null)}
+              saving={editSaving}
+              submitLabel={t("courses.editSave")}
             />
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">{t("courses.description")}</label>
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("courses.descriptionPlaceholder")}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">{t("courses.color")}</label>
-            <div className="flex gap-2">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={`w-7 h-7 rounded-full transition-transform ${color === c ? "scale-125 ring-2 ring-white" : ""}`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
-              {saving ? t("common.loading") : t("common.create")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        </form>
+        </div>
+      )}
+
+      {/* Create form */}
+      {showForm && !editingCourse && (
+        <CourseForm
+          name={name}
+          setName={setName}
+          description={description}
+          setDescription={setDescription}
+          color={color}
+          setColor={setColor}
+          onSubmit={handleCreate}
+          onCancel={() => setShowForm(false)}
+          saving={saving}
+          submitLabel={t("common.create")}
+        />
       )}
 
       {loading ? (
@@ -119,7 +205,7 @@ export function CoursesPage() {
           {courses.map((course) => (
             <div
               key={course.id}
-              className="bg-gray-800 rounded-xl p-4 flex items-center justify-between border border-gray-700 hover:border-gray-600 transition-colors"
+              className="bg-gray-800 rounded-xl p-4 flex items-center justify-between border border-gray-700 hover:border-gray-600 transition-colors group"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -133,12 +219,22 @@ export function CoursesPage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => handleDelete(course.id)}
-                className="text-gray-500 hover:text-red-400 text-sm transition-colors"
-              >
-                {t("common.delete")}
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Pencil edit button */}
+                <button
+                  onClick={() => openEdit(course)}
+                  className="text-gray-500 hover:text-blue-400 text-sm transition-colors opacity-0 group-hover:opacity-100"
+                  title={t("common.edit")}
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => handleDelete(course.id)}
+                  className="text-gray-500 hover:text-red-400 text-sm transition-colors"
+                >
+                  {t("common.delete")}
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -60,7 +60,7 @@ function FileDropZone({
 }
 
 export function ExamAnalysisPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
 
   const [examFile, setExamFile] = useState<File | null>(null);
@@ -99,6 +99,7 @@ export function ExamAnalysisPage() {
         guidance: guidance.trim() || undefined,
         studentExperience: experience.trim() || undefined,
         referenceExamId: refExamId,
+        language: i18n.language,
       })) {
         accumulated += chunk;
         setResult(accumulated);
