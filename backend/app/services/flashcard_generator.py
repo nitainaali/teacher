@@ -8,6 +8,24 @@ from app.models.models import Document, Flashcard
 from app.services import claude
 
 
+DIFFICULTY_INSTRUCTIONS = {
+    "easy": (
+        "Make the cards straightforward and accessible. Focus on basic definitions, "
+        "key terms, and simple recall. Avoid complex multi-step reasoning. "
+        "The student should be able to answer with basic knowledge."
+    ),
+    "medium": (
+        "Mix difficulty levels. Include some straightforward recall questions "
+        "and some that require deeper understanding or application."
+    ),
+    "hard": (
+        "Focus on deep understanding, complex applications, edge cases, and "
+        "tricky scenarios. Cards should require careful analysis and synthesis. "
+        "Challenge the student's mastery of the material."
+    ),
+}
+
+
 async def generate_flashcards(
     db: AsyncSession,
     document_id: str,
@@ -17,6 +35,8 @@ async def generate_flashcards(
     topic: Optional[str] = None,
     guidance: Optional[str] = None,
     language: str = "en",
+    difficulty: str = "medium",
+    deck_id: Optional[str] = None,
 ) -> list[Flashcard]:
     result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
@@ -61,13 +81,15 @@ async def generate_flashcards(
         ),
     }
     type_desc = type_instructions.get(card_type, type_instructions["mixed"])
+    difficulty_desc = DIFFICULTY_INSTRUCTIONS.get(difficulty, DIFFICULTY_INSTRUCTIONS["medium"])
 
     topic_filter = f" Focus specifically on the topic: '{topic}'." if topic else ""
     guidance_str = f" Additional instruction: {guidance}." if guidance else ""
 
     prompt = (
         f"Generate exactly {count} flashcards from the following study material.\n"
-        f"{type_desc}{topic_filter}{guidance_str}\n\n"
+        f"Card type: {type_desc}\n"
+        f"Difficulty: {difficulty_desc}{topic_filter}{guidance_str}\n\n"
         "Return a JSON array. Each object must have:\n"
         '- "front": the question, statement, or prompt (may include LaTeX: $...$ inline, $$...$$ display)\n'
         '- "back": the answer, explanation, or verdict (may include LaTeX)\n'
@@ -95,6 +117,7 @@ async def generate_flashcards(
         card = Flashcard(
             course_id=course_id,
             source_document_id=document_id,
+            deck_id=deck_id,
             front=front,
             back=back,
             topic=item.get("topic"),

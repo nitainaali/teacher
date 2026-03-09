@@ -31,6 +31,7 @@ async def send_message_stream(
     course_id: Optional[str],
     knowledge_mode: str,
     language: str = "en",
+    source: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     session = await get_or_create_session(db, session_id, course_id, knowledge_mode)
 
@@ -73,10 +74,12 @@ async def send_message_stream(
     assistant_msg = ChatMessage(session_id=session.id, role="assistant", content=full_response)
     db.add(assistant_msg)
 
-    # Write learning event
+    # Write learning event — use isolated type for homework chat so it doesn't
+    # pollute the topic summary left panel
+    event_type = "homework_chat" if source == "homework_chat" else "chat_question"
     await student_intelligence.write_learning_event(
         db=db,
-        event_type="chat_question",
+        event_type=event_type,
         course_id=course_id,
         details={"question": message[:200]},
     )

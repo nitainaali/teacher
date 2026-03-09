@@ -1,3 +1,4 @@
+import hashlib
 import os
 import uuid
 from pathlib import Path
@@ -36,11 +37,42 @@ async def upload_document(
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
+    content = await file.read()
+
+    # Duplicate detection: check SHA-256 hash first
+    content_hash = hashlib.sha256(content).hexdigest()
+    dup_result = await db.execute(
+        select(Document).where(
+            Document.course_id == course_id,
+            Document.content_hash == content_hash,
+        )
+    )
+    dup = dup_result.scalar_one_or_none()
+    if dup:
+        raise HTTPException(
+            status_code=409,
+            detail={"duplicate": True, "name": dup.original_name},
+        )
+
+    # Fallback: check by filename (catches pre-migration files with NULL hash)
+    if file.filename:
+        dup_name_result = await db.execute(
+            select(Document).where(
+                Document.course_id == course_id,
+                Document.original_name == file.filename,
+            )
+        )
+        dup_name = dup_name_result.scalar_one_or_none()
+        if dup_name:
+            raise HTTPException(
+                status_code=409,
+                detail={"duplicate": True, "name": dup_name.original_name},
+            )
+
     ext = Path(file.filename or "file.pdf").suffix
     stored_name = f"{uuid.uuid4()}{ext}"
     file_path = upload_dir / stored_name
 
-    content = await file.read()
     with open(file_path, "wb") as f:
         f.write(content)
 
@@ -51,6 +83,7 @@ async def upload_document(
         doc_type=doc_type,
         file_path=str(file_path),
         processing_status="pending",
+        content_hash=content_hash,
     )
     db.add(doc)
     await db.flush()
@@ -64,11 +97,14 @@ async def upload_document(
 @router.get("/", response_model=List[DocumentOut])
 async def list_documents(
     course_id: Optional[str] = None,
+    upload_source: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Document).order_by(Document.created_at.desc())
     if course_id:
         query = query.where(Document.course_id == course_id)
+    if upload_source:
+        query = query.where(Document.upload_source == upload_source)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -93,3 +129,4 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
     except FileNotFoundError:
         pass
     await db.delete(doc)
+    await db.commit()

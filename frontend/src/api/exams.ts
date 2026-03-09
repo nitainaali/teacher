@@ -3,6 +3,29 @@ import type { ExamUpload } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+export interface ExamAnalysisRecord {
+  id: string;
+  course_id: string | null;
+  reference_exam_name: string | null;
+  student_exam_name: string | null;
+  analysis_result: string;
+  created_at: string;
+}
+
+export const getExamAnalyses = (courseId?: string) => {
+  const params: Record<string, string> = {};
+  if (courseId) params.course_id = courseId;
+  return client
+    .get<ExamAnalysisRecord[]>("/api/exams/analyses", { params })
+    .then((r) => r.data);
+};
+
+export const getExamAnalysis = (id: string) =>
+  client.get<ExamAnalysisRecord>(`/api/exams/analyses/${id}`).then((r) => r.data);
+
+export const deleteExamAnalysis = (id: string) =>
+  client.delete(`/api/exams/analyses/${id}`);
+
 export const uploadExam = (
   file: File,
   courseId: string,

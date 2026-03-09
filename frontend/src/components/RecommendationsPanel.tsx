@@ -18,6 +18,11 @@ export function RecommendationsPanel({ courseId, onTopicSelect }: Recommendation
   const { t } = useTranslation();
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const storageKey = `recs-open-${courseId}`;
+  const [isOpen, setIsOpen] = useState(() => {
+    try { return localStorage.getItem(storageKey) === "true"; }
+    catch { return false; }
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -26,26 +31,45 @@ export function RecommendationsPanel({ courseId, onTopicSelect }: Recommendation
       .finally(() => setLoading(false));
   }, [courseId]);
 
+  const toggle = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    try { localStorage.setItem(storageKey, String(next)); } catch {}
+  };
+
   if (loading) {
-    return (
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-        <p className="text-xs text-gray-500 animate-pulse">{t("common.loading")}</p>
-      </div>
-    );
+    return null; // don't show anything while loading
   }
 
   if (recs.length === 0) {
+    return null; // no recommendations — don't render
+  }
+
+  // Collapsed state: show compact button
+  if (!isOpen) {
     return (
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-300 mb-1">{t("recommendations.title")}</h3>
-        <p className="text-xs text-gray-500">{t("recommendations.noData")}</p>
-      </div>
+      <button
+        onClick={toggle}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+      >
+        <span>💡</span>
+        <span>{t("recommendations.title")} ({recs.length})</span>
+      </button>
     );
   }
 
+  // Expanded state: full panel
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-      <h3 className="text-sm font-semibold text-gray-300 mb-3">{t("recommendations.title")}</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-300">{t("recommendations.title")}</h3>
+        <button
+          onClick={toggle}
+          className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+        >
+          ✕
+        </button>
+      </div>
       <div className="space-y-2">
         {recs.map((rec) => {
           const cfg = urgencyConfig[rec.urgency_level] ?? urgencyConfig.low;

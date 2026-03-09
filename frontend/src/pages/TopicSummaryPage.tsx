@@ -3,20 +3,14 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import client from "../api/client";
 import { MarkdownContent } from "../components/MarkdownContent";
+import { getTopicSummaries, deleteTopicSummary } from "../api/learning";
+import { getDocuments } from "../api/documents";
+import type { TopicSummary } from "../types";
 
 interface TopicEntry {
   topic: string;
   avg_score: number;
   event_count: number;
-}
-
-interface SavedSummary {
-  id: string;
-  topic: string;
-  content: string;
-  guidance?: string;
-  language: string;
-  created_at: string;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -25,19 +19,22 @@ export function TopicSummaryPage() {
   const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
 
-  // Suggested topics from learning history
   const [topics, setTopics] = useState<TopicEntry[]>([]);
-  // Free-text topic input (can be selected from chips or typed)
+  const [allSummaries, setAllSummaries] = useState<TopicSummary[]>([]);
+  const [hasDocuments, setHasDocuments] = useState<boolean | null>(null); // null = loading
   const [topicInput, setTopicInput] = useState("");
   const [guidance, setGuidance] = useState("");
-  // Currently streaming summary
   const [summary, setSummary] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // History of saved summaries for the current topic
-  const [history, setHistory] = useState<SavedSummary[]>([]);
-  const [historyTopic, setHistoryTopic] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedTopicName, setSelectedTopicName] = useState<string | null>(null);
+
+  const fetchAllSummaries = () => {
+    if (!courseId) return;
+    getTopicSummaries(courseId)
+      .then(setAllSummaries)
+      .catch(() => setAllSummaries([]));
+  };
 
   useEffect(() => {
     if (!courseId) return;
@@ -45,31 +42,59 @@ export function TopicSummaryPage() {
       .get<TopicEntry[]>("/api/progress/topics", { params: { course_id: courseId } })
       .then((r) => setTopics(r.data))
       .catch(() => setTopics([]));
+    fetchAllSummaries();
+    // Check if there are any uploaded course documents
+    getDocuments(courseId, "knowledge")
+      .then((docs) => setHasDocuments(docs.length > 0))
+      .catch(() => setHasDocuments(false));
   }, [courseId]);
 
-  // Load history when topicInput changes
-  useEffect(() => {
-    const topic = topicInput.trim();
-    if (!topic || !courseId || topic === historyTopic) return;
-    setHistoryTopic(topic);
-    setHistory([]);
-    client
-      .get<SavedSummary[]>("/api/learning/topic-summaries", {
-        params: { course_id: courseId, topic },
-      })
-      .then((r) => setHistory(r.data))
-      .catch(() => setHistory([]));
-  }, [topicInput, courseId]);
+  // Group summaries by topic (ordered desc by created_at from API)
+  const summariesByTopic: Record<string, TopicSummary[]> = {};
+  for (const s of allSummaries) {
+    if (!summariesByTopic[s.topic]) summariesByTopic[s.topic] = [];
+    summariesByTopic[s.topic].push(s);
+  }
 
-  const selectChip = (topic: string) => {
-    setTopicInput(topic);
+  // All unique topics (summaries first, then progress topics not already covered)
+  const allTopicNames = Array.from(
+    new Set([...Object.keys(summariesByTopic), ...topics.map((e) => e.topic)])
+  );
+
+  const selectTopic = (topicName: string) => {
+    setSelectedTopicName(topicName);
+    setTopicInput(topicName);
     setSummary("");
     setError(null);
+    const saved = summariesByTopic[topicName];
+    if (saved && saved.length > 0) {
+      setSummary(saved[0].content);
+      setGuidance(saved[0].guidance || "");
+    } else {
+      setGuidance("");
+    }
+  };
+
+  const handleSelectSummaryItem = (item: TopicSummary) => {
+    setSummary(item.content);
+    setGuidance(item.guidance || "");
+  };
+
+  const handleDeleteSummary = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteTopicSummary(id);
+      const deleted = allSummaries.find((s) => s.id === id);
+      if (deleted && summary === deleted.content) setSummary("");
+      fetchAllSummaries();
+    } catch {
+      // silently ignore
+    }
   };
 
   const handleSummarize = async () => {
     const topic = topicInput.trim();
-    if (!topic || streaming) return;
+    if (!topic || streaming || hasDocuments === false) return;
     setSummary("");
     setError(null);
     setStreaming(true);
@@ -86,9 +111,7 @@ export function TopicSummaryPage() {
         }),
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error(t("common.error"));
-      }
+      if (!response.ok || !response.body) throw new Error(t("common.error"));
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -105,26 +128,22 @@ export function TopicSummaryPage() {
           if (line.startsWith("data: ")) {
             const text = line.slice(6);
             if (text === "[DONE]") break;
-            if (text.startsWith("[ERROR:")) {
-              throw new Error(text.slice(7, -1));
-            }
+            if (text.startsWith("[ERROR:")) throw new Error(text.slice(7, -1));
             if (text) {
               accumulated += text;
-              setSummary(accumulated);
             }
           }
         }
       }
 
-      // Reload history after save
-      if (courseId && topic) {
-        client
-          .get<SavedSummary[]>("/api/learning/topic-summaries", {
-            params: { course_id: courseId, topic },
-          })
-          .then((r) => setHistory(r.data))
-          .catch(() => {});
-      }
+      // Load the DB-saved version (authoritative, no SSE corruption) and display that.
+      // Falls back to the streamed `accumulated` if the API call fails.
+      const fresh = await getTopicSummaries(courseId!).catch(() => [] as typeof allSummaries);
+      setAllSummaries(fresh);
+      const saved = fresh
+        .filter((s) => s.topic === topic)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setSummary(saved.length > 0 ? saved[0].content : accumulated);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -133,110 +152,151 @@ export function TopicSummaryPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-xl font-bold text-white">{t("topicSummary.title")}</h2>
+    <div className="flex gap-4 h-full">
+      {/* ── Left column: topic list ────────────────────────────────────── */}
+      <div className="w-52 shrink-0 bg-gray-800 rounded-xl border border-gray-700 overflow-y-auto max-h-[calc(100vh-8rem)]">
+        {/* Title */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2.5 pt-2.5 pb-1 border-b border-gray-700">
+          {t("topicSummary.courseTopics")}
+        </p>
 
-      {/* Suggested topics chips */}
-      {topics.length > 0 && (
-        <div>
-          <p className="text-xs text-gray-500 mb-2">{t("topicSummary.suggestedTopics")}</p>
-          <div className="flex flex-wrap gap-2">
-            {topics.map((entry) => (
-              <button
-                key={entry.topic}
-                onClick={() => selectChip(entry.topic)}
-                className={[
-                  "px-3 py-1 rounded-full text-sm transition-colors",
-                  topicInput === entry.topic
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600",
-                ].join(" ")}
-              >
-                {entry.topic}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        {allTopicNames.length === 0 ? (
+          <p className="text-xs text-gray-500 p-3">{t("topicSummary.noTopics")}</p>
+        ) : (
+          <div className="p-1.5 space-y-0.5">
+            {allTopicNames.map((topicName) => {
+              const isSelected = selectedTopicName === topicName;
+              const saved = summariesByTopic[topicName] || [];
+              return (
+                <div key={topicName}>
+                  <button
+                    onClick={() => selectTopic(topicName)}
+                    className={[
+                      "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
+                      isSelected
+                        ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
+                        : "text-gray-300 hover:bg-gray-700",
+                    ].join(" ")}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
+                      <span className="truncate">{topicName}</span>
+                    </span>
+                  </button>
 
-      {/* Free-text topic input */}
-      <div className="space-y-3">
-        <input
-          type="text"
-          value={topicInput}
-          onChange={(e) => { setTopicInput(e.target.value); setSummary(""); setError(null); }}
-          placeholder={t("topicSummary.topicPlaceholder")}
-          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
-        <input
-          type="text"
-          value={guidance}
-          onChange={(e) => setGuidance(e.target.value)}
-          placeholder={t("topicSummary.guidancePlaceholder")}
-          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
-        <button
-          onClick={handleSummarize}
-          disabled={!topicInput.trim() || streaming}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          {streaming ? t("topicSummary.summarizing") : t("topicSummary.summarize")}
-        </button>
-      </div>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-
-      {/* Streaming output */}
-      {(summary || streaming) && (
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <MarkdownContent content={summary} />
-          {streaming && (
-            <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
-          )}
-        </div>
-      )}
-
-      {/* History panel */}
-      {history.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {t("topicSummary.history")}
-          </p>
-          {history.map((item) => (
-            <div key={item.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-              <button
-                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-700 transition-colors"
-              >
-                <div>
-                  <span className="text-sm text-gray-200">
-                    {new Date(item.created_at).toLocaleDateString(i18n.language, {
-                      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-                    })}
-                  </span>
-                  {item.guidance && (
-                    <span className="ml-2 text-xs text-gray-500 italic">({item.guidance})</span>
+                  {isSelected && saved.length > 0 && (
+                    <div className="ml-3 mt-0.5 mb-1 space-y-0.5">
+                      {saved.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleSelectSummaryItem(item)}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-gray-700/50 hover:bg-gray-700 cursor-pointer group"
+                        >
+                          <span className="text-xs text-gray-500 shrink-0">📄</span>
+                          <span className="text-xs text-gray-300 flex-1 min-w-0 truncate">
+                            {new Date(item.created_at).toLocaleDateString(i18n.language, {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                            {item.guidance ? ` — ${item.guidance.slice(0, 12)}` : ""}
+                          </span>
+                          <button
+                            onClick={(e) => handleDeleteSummary(item.id, e)}
+                            className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs shrink-0"
+                            title={t("topicSummary.deleteSummary")}
+                          >
+                            🗑
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <span className="text-gray-500 text-xs">{expandedId === item.id ? "▲" : "▼"}</span>
-              </button>
-              {expandedId === item.id && (
-                <div className="px-4 pb-4 border-t border-gray-700 pt-3">
-                  <MarkdownContent content={item.content} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {/* Empty state */}
-      {topics.length === 0 && !topicInput && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="text-5xl mb-4 select-none">📚</div>
-          <p className="text-gray-400 text-sm max-w-sm">{t("topicSummary.noTopics")}</p>
+      {/* ── Right column: input + result ────────────────────────────────── */}
+      <div className="flex-1 min-w-0 space-y-4">
+        <h2 className="text-xl font-bold text-white">{t("topicSummary.title")}</h2>
+
+        {/* No documents warning */}
+        {hasDocuments === false && (
+          <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl px-4 py-3 text-sm text-yellow-300">
+            {t("topicSummary.noDocuments")}
+          </div>
+        )}
+
+        <div className="space-y-2.5">
+          <input
+            type="text"
+            value={topicInput}
+            onChange={(e) => {
+              setTopicInput(e.target.value);
+              setSummary("");
+              setError(null);
+              setSelectedTopicName(e.target.value.trim() || null);
+            }}
+            placeholder={t("topicSummary.topicPlaceholder")}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
+          <input
+            type="text"
+            value={guidance}
+            onChange={(e) => setGuidance(e.target.value)}
+            placeholder={t("topicSummary.guidancePlaceholder")}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSummarize}
+              disabled={!topicInput.trim() || streaming || hasDocuments === false}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              {streaming ? t("topicSummary.summarizing") : t("topicSummary.summarize")}
+            </button>
+            {summary && !streaming && (
+              <button
+                onClick={() => { setSummary(""); setGuidance(""); }}
+                className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                {t("topicSummary.regenerate")}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+
+        {error && (
+          <div className="bg-red-900/20 border border-red-700/50 rounded-xl px-4 py-3 text-sm text-red-300">
+            ⚠ {error}
+          </div>
+        )}
+
+        {streaming && (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 flex items-center gap-3 text-gray-400">
+            <svg className="animate-spin h-5 w-5 text-blue-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm">{t("topicSummary.summarizing")}</span>
+          </div>
+        )}
+
+        {summary && !streaming && (
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <MarkdownContent content={summary} />
+          </div>
+        )}
+
+        {!summary && !streaming && !topicInput && allTopicNames.length === 0 && hasDocuments !== false && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="text-5xl mb-4 select-none">📚</div>
+            <p className="text-gray-400 text-sm max-w-sm">{t("topicSummary.noTopics")}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

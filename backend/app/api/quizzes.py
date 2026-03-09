@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.models.models import QuizSession, QuizQuestion
 from app.schemas.schemas import (
     QuizGenerateRequest, QuizSessionOut, QuizSessionDetail,
-    QuizQuestionOut, QuizSubmitRequest,
+    QuizQuestionOut, QuizSubmitRequest, QuizSessionUpdate,
 )
 from app.services.quiz_generator import generate_quiz, grade_quiz
 
@@ -70,6 +70,35 @@ async def get_quiz(session_id: str, db: AsyncSession = Depends(get_db)):
         questions_out.append(q_dict)
 
     return {**QuizSessionOut.model_validate(session).model_dump(), "questions": questions_out}
+
+
+@router.patch("/{session_id}", response_model=QuizSessionOut)
+async def update_quiz_metadata(
+    session_id: str,
+    data: QuizSessionUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(404, "Quiz session not found")
+    if data.topic is not None:
+        session.topic = data.topic
+    if data.difficulty is not None:
+        session.difficulty = data.difficulty
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_quiz(session_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(404, "Quiz session not found")
+    await db.delete(session)
+    await db.commit()
 
 
 @router.post("/{session_id}/submit", response_model=QuizSessionDetail)

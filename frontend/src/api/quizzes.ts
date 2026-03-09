@@ -22,3 +22,8 @@ export const getQuiz = (id: string) =>
 
 export const submitQuiz = (id: string, answers: Array<{ question_id: string; answer: string }>) =>
   client.post<QuizSessionDetail>(`/api/quizzes/${id}/submit`, { answers }).then((r) => r.data);
+
+export const updateQuiz = (id: string, data: { topic?: string; difficulty?: string }) =>
+  client.patch<QuizSession>(`/api/quizzes/${id}`, data).then((r) => r.data);
+
+export const deleteQuiz = (id: string) => client.delete(`/api/quizzes/${id}`);

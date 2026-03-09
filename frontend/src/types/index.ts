@@ -14,6 +14,7 @@ export interface Document {
   doc_type: string;
   processing_status: "pending" | "processing" | "done" | "error";
   extracted_text: string | null;
+  upload_source: string;
   created_at: string;
   metadata_: Record<string, unknown> | null;
 }
@@ -45,6 +46,8 @@ export interface QuizSession {
   completed_at: string | null;
   score: number | null;
   total_questions: number;
+  topic: string | null;
+  difficulty: string | null;
 }
 
 export interface QuizQuestion {
@@ -70,6 +73,7 @@ export interface ChatSession {
   knowledge_mode: string;
   created_at: string;
   updated_at: string;
+  first_message?: string | null;
 }
 
 export interface ChatMessage {
@@ -125,4 +129,14 @@ export interface Recommendation {
   reason: string;
   strength: number;
   importance: number;
+}
+
+export interface TopicSummary {
+  id: string;
+  course_id: string;
+  topic: string;
+  content: string;
+  guidance: string | null;
+  language: string;
+  created_at: string;
 }

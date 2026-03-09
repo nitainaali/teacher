@@ -1,8 +1,10 @@
 import client from "./client";
 import type { Document } from "../types";
 
-export const getDocuments = (courseId?: string) => {
-  const params = courseId ? { course_id: courseId } : {};
+export const getDocuments = (courseId?: string, uploadSource?: string) => {
+  const params: Record<string, string> = {};
+  if (courseId) params.course_id = courseId;
+  if (uploadSource) params.upload_source = uploadSource;
   return client.get<Document[]>("/api/documents/", { params }).then((r) => r.data);
 };
 

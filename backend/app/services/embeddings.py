@@ -8,7 +8,9 @@ _model: SentenceTransformer | None = None
 def _get_model() -> SentenceTransformer:
     global _model
     if _model is None:
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        # paraphrase-multilingual-MiniLM-L12-v2: 384-dim, 50+ languages including Hebrew
+        # Replaces English-only all-MiniLM-L6-v2 to fix RAG quality for Hebrew content
+        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
     return _model
 
 

@@ -12,3 +12,6 @@ export const updateCourse = (id: string, data: Partial<{ name: string; descripti
 export const deleteCourse = (id: string) => client.delete(`/api/courses/${id}`);
 
 export const getCourse = (id: string) => client.get<Course>(`/api/courses/${id}`).then((r) => r.data);
+
+export const reorderCourses = (ids: string[]) =>
+  client.post("/api/courses/reorder", { ids });

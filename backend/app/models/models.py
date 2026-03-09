@@ -21,14 +21,18 @@ class Course(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str | None] = mapped_column(String(20))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     documents: Mapped[list["Document"]] = relationship("Document", back_populates="course")
     flashcards: Mapped[list["Flashcard"]] = relationship("Flashcard", back_populates="course")
+    flashcard_decks: Mapped[list["FlashcardDeck"]] = relationship("FlashcardDeck", back_populates="course")
     quiz_sessions: Mapped[list["QuizSession"]] = relationship("QuizSession", back_populates="course")
     exam_uploads: Mapped[list["ExamUpload"]] = relationship("ExamUpload", back_populates="course")
     learning_events: Mapped[list["LearningEvent"]] = relationship("LearningEvent", back_populates="course")
     chat_sessions: Mapped[list["ChatSession"]] = relationship("ChatSession", back_populates="course")
+    homework_submissions: Mapped[list["HomeworkSubmission"]] = relationship("HomeworkSubmission", back_populates="course")
+    exam_analysis_records: Mapped[list["ExamAnalysisRecord"]] = relationship("ExamAnalysisRecord", back_populates="course")
 
 
 class Document(Base):
@@ -42,6 +46,8 @@ class Document(Base):
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     extracted_text: Mapped[str | None] = mapped_column(Text)
     processing_status: Mapped[str] = mapped_column(String(20), default="pending")  # pending|processing|done|error
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    upload_source: Mapped[str] = mapped_column(String(20), default="knowledge")  # knowledge|exam_upload
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
 
@@ -64,12 +70,28 @@ class DocumentChunk(Base):
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 
 
+class FlashcardDeck(Base):
+    __tablename__ = "flashcard_decks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String, default="")
+    topic: Mapped[str | None] = mapped_column(Text)
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    card_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course"] = relationship("Course", back_populates="flashcard_decks")
+    cards: Mapped[list["Flashcard"]] = relationship("Flashcard", back_populates="deck", cascade="all, delete-orphan")
+
+
 class Flashcard(Base):
     __tablename__ = "flashcards"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
     source_document_id: Mapped[str | None] = mapped_column(String, ForeignKey("documents.id", ondelete="SET NULL"))
+    deck_id: Mapped[str | None] = mapped_column(String, ForeignKey("flashcard_decks.id", ondelete="CASCADE"), nullable=True)
     front: Mapped[str] = mapped_column(Text, nullable=False)
     back: Mapped[str] = mapped_column(Text, nullable=False)
     topic: Mapped[str | None] = mapped_column(Text)
@@ -86,6 +108,7 @@ class Flashcard(Base):
 
     course: Mapped["Course"] = relationship("Course", back_populates="flashcards")
     source_document: Mapped["Document | None"] = relationship("Document", back_populates="flashcards")
+    deck: Mapped["FlashcardDeck | None"] = relationship("FlashcardDeck", back_populates="cards")
 
 
 class QuizSession(Base):
@@ -99,6 +122,8 @@ class QuizSession(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     score: Mapped[float | None] = mapped_column(Float)
     total_questions: Mapped[int] = mapped_column(Integer, default=0)
+    topic: Mapped[str | None] = mapped_column(Text)
+    difficulty: Mapped[str | None] = mapped_column(String(20))
 
     course: Mapped["Course"] = relationship("Course", back_populates="quiz_sessions")
     questions: Mapped[list["QuizQuestion"]] = relationship("QuizQuestion", back_populates="session", cascade="all, delete-orphan")
@@ -209,6 +234,33 @@ class TopicSummary(Base):
     guidance: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str] = mapped_column(String(10), default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class HomeworkSubmission(Base):
+    __tablename__ = "homework_submissions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    user_description: Mapped[str | None] = mapped_column(Text)
+    filenames: Mapped[list | None] = mapped_column(JSONB)  # list of original filenames
+    analysis_result: Mapped[str] = mapped_column(Text, nullable=False)
+    score_text: Mapped[str | None] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course | None"] = relationship("Course", back_populates="homework_submissions")
+
+
+class ExamAnalysisRecord(Base):
+    __tablename__ = "exam_analysis_records"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    reference_exam_name: Mapped[str | None] = mapped_column(String)
+    student_exam_name: Mapped[str | None] = mapped_column(String)
+    analysis_result: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course | None"] = relationship("Course", back_populates="exam_analysis_records")
 
 
 # Phase 2 tables

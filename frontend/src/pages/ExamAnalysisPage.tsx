@@ -1,63 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { uploadExam, streamExamAnalysis } from "../api/exams";
+import { uploadExam, streamExamAnalysis, getExamAnalyses, deleteExamAnalysis } from "../api/exams";
+import type { ExamAnalysisRecord } from "../api/exams";
 import { MarkdownContent } from "../components/MarkdownContent";
-
-function FileDropZone({
-  file,
-  onFile,
-  label,
-  hint,
-  emoji = "📝",
-}: {
-  file: File | null;
-  onFile: (f: File) => void;
-  label: string;
-  hint: string;
-  emoji?: string;
-}) {
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { t } = useTranslation();
-
-  return (
-    <div>
-      <p className="text-sm font-medium text-gray-300 mb-1">{label}</p>
-      <p className="text-xs text-gray-500 mb-2">{hint}</p>
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault(); setDragging(false);
-          const f = e.dataTransfer.files[0];
-          if (f) onFile(f);
-        }}
-        onClick={() => inputRef.current?.click()}
-        className={[
-          "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors select-none",
-          dragging
-            ? "border-blue-500 bg-blue-600/10"
-            : "border-gray-600 hover:border-gray-500 hover:bg-gray-700/40",
-        ].join(" ")}
-      >
-        <div className="text-2xl mb-1">{emoji}</div>
-        {file ? (
-          <p className="text-sm text-blue-400 font-medium">{file.name}</p>
-        ) : (
-          <p className="text-sm text-gray-400">{t("examAnalysis.dragDrop")}</p>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
-        />
-      </div>
-    </div>
-  );
-}
+import { FileDropZone } from "../components/FileDropZone";
 
 export function ExamAnalysisPage() {
   const { t, i18n } = useTranslation();
@@ -72,6 +19,24 @@ export function ExamAnalysisPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // History sidebar
+  const [historyItems, setHistoryItems] = useState<ExamAnalysisRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<ExamAnalysisRecord | null>(null);
+
+  const fetchHistory = () => {
+    if (!courseId) return;
+    setLoadingHistory(true);
+    getExamAnalyses(courseId)
+      .then(setHistoryItems)
+      .catch(() => {})
+      .finally(() => setLoadingHistory(false));
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, [courseId]);
+
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!examFile) { setError(t("examAnalysis.noFile")); return; }
@@ -81,6 +46,7 @@ export function ExamAnalysisPage() {
     setResult("");
     setError(null);
     setSaved(false);
+    setSelectedHistory(null);
 
     try {
       // 1. Upload student exam
@@ -93,7 +59,7 @@ export function ExamAnalysisPage() {
         refExamId = refUpload.id;
       }
 
-      // 3. Stream analysis
+      // 3. Stream silently — collect all chunks, set result only when done (F5)
       let accumulated = "";
       for await (const chunk of streamExamAnalysis(examUpload.id, {
         guidance: guidance.trim() || undefined,
@@ -102,9 +68,11 @@ export function ExamAnalysisPage() {
         language: i18n.language,
       })) {
         accumulated += chunk;
-        setResult(accumulated);
       }
+      setResult(accumulated);
       setSaved(true);
+      // Refresh history after completion
+      setTimeout(() => fetchHistory(), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -112,74 +80,192 @@ export function ExamAnalysisPage() {
     }
   };
 
+  const loadHistoryItem = (record: ExamAnalysisRecord) => {
+    setSelectedHistory(record);
+    setResult("");
+    setError(null);
+    setSaved(false);
+  };
+
+  const handleDeleteHistory = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteExamAnalysis(id);
+      if (selectedHistory?.id === id) setSelectedHistory(null);
+      fetchHistory();
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return (
+      d.toLocaleDateString() +
+      " " +
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
+  };
+
   return (
-    <div className="space-y-5 max-w-2xl">
-      <h2 className="text-xl font-bold text-white">{t("examAnalysis.title")}</h2>
+    <div className="flex gap-5 items-start">
+      {/* ── Main content ─────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 max-w-2xl space-y-5">
+        <h2 className="text-xl font-bold text-white">{t("examAnalysis.title")}</h2>
 
-      <form onSubmit={handleAnalyze} className="space-y-4">
-        {/* Student exam upload */}
-        <FileDropZone
-          file={examFile}
-          onFile={setExamFile}
-          label={t("examAnalysis.uploadExam")}
-          hint={t("examAnalysis.uploadHint")}
-          emoji="📝"
-        />
-
-        {/* Reference exam upload */}
-        <FileDropZone
-          file={refFile}
-          onFile={setRefFile}
-          label={t("examAnalysis.uploadReference")}
-          hint={t("examAnalysis.uploadReferenceHint")}
-          emoji="📄"
-        />
-
-        {/* Guidance */}
-        <input
-          type="text"
-          value={guidance}
-          onChange={(e) => setGuidance(e.target.value)}
-          placeholder={t("examAnalysis.guidancePlaceholder")}
-          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
-
-        {/* Student experience */}
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">{t("examAnalysis.experience")}</label>
-          <textarea
-            rows={3}
-            value={experience}
-            onChange={(e) => setExperience(e.target.value)}
-            placeholder={t("examAnalysis.experiencePlaceholder")}
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+        <form onSubmit={handleAnalyze} className="space-y-4">
+          {/* Student exam upload */}
+          <FileDropZone
+            file={examFile}
+            onFile={setExamFile}
+            label={t("examAnalysis.uploadExam")}
+            hint={t("examAnalysis.uploadHint")}
+            emoji="📝"
           />
-        </div>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+          {/* Reference exam upload */}
+          <FileDropZone
+            file={refFile}
+            onFile={setRefFile}
+            label={t("examAnalysis.uploadReference")}
+            hint={t("examAnalysis.uploadReferenceHint")}
+            emoji="📄"
+          />
 
-        <button
-          type="submit"
-          disabled={analyzing || !examFile}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          {analyzing ? t("examAnalysis.analyzing") : t("examAnalysis.analyze")}
-        </button>
-      </form>
+          {/* Guidance */}
+          <input
+            type="text"
+            value={guidance}
+            onChange={(e) => setGuidance(e.target.value)}
+            placeholder={t("examAnalysis.guidancePlaceholder")}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
 
-      {/* Streaming result */}
-      {(result || analyzing) && (
-        <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t("examAnalysis.results")}</h3>
-          <MarkdownContent content={result} />
-          {analyzing && (
-            <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle mt-1" />
-          )}
-          {saved && !analyzing && (
-            <p className="text-green-400 text-xs mt-3">✓ {t("examAnalysis.savedToProfile")}</p>
-          )}
-        </div>
-      )}
+          {/* Student experience */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              {t("examAnalysis.experience")}
+            </label>
+            <textarea
+              rows={3}
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+              placeholder={t("examAnalysis.experiencePlaceholder")}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+            />
+          </div>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={analyzing || !examFile}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            {analyzing ? t("examAnalysis.analyzing") : t("examAnalysis.analyze")}
+          </button>
+        </form>
+
+        {/* ── Analyzing spinner (F5 silent stream) ─────────────────────────── */}
+        {analyzing && (
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              <p className="text-sm text-gray-400">{t("examAnalysis.analyzing")}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Result area ─────────────────────────────────────────────────────── */}
+        {selectedHistory ? (
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-300">
+                {t("examAnalysis.results")}
+              </h3>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">
+                  {formatDate(selectedHistory.created_at)}
+                </span>
+                <button
+                  onClick={() => setSelectedHistory(null)}
+                  className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            {selectedHistory.student_exam_name && (
+              <p className="text-xs text-gray-400 mb-3">
+                📝 {selectedHistory.student_exam_name}
+                {selectedHistory.reference_exam_name && (
+                  <span> vs 📄 {selectedHistory.reference_exam_name}</span>
+                )}
+              </p>
+            )}
+            <MarkdownContent content={selectedHistory.analysis_result} />
+          </div>
+        ) : result ? (
+          <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">
+              {t("examAnalysis.results")}
+            </h3>
+            <MarkdownContent content={result} />
+            {saved && (
+              <p className="text-green-400 text-xs mt-3">
+                ✓ {t("examAnalysis.savedToProfile")}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── History sidebar ────────────────────────────────────────────────────── */}
+      <div className="w-60 shrink-0 bg-gray-800 rounded-xl border border-gray-700 p-3">
+        <h3 className="text-sm font-semibold text-gray-300 mb-3">
+          {t("examAnalysis.analysisHistory")}
+        </h3>
+        {loadingHistory ? (
+          <p className="text-xs text-gray-500">{t("common.loading")}</p>
+        ) : historyItems.length === 0 ? (
+          <p className="text-xs text-gray-500">{t("examAnalysis.noHistory")}</p>
+        ) : (
+          <div className="space-y-2">
+            {historyItems.map((record) => (
+              <div
+                key={record.id}
+                onClick={() => loadHistoryItem(record)}
+                className={`group relative w-full text-left rounded-lg px-3 py-2.5 transition-colors border cursor-pointer ${
+                  selectedHistory?.id === record.id
+                    ? "bg-blue-600/20 border-blue-600/50"
+                    : "bg-gray-700/50 border-transparent hover:bg-gray-700 hover:border-gray-600"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <p className="text-xs text-gray-200 truncate font-medium flex-1">
+                    📝 {record.student_exam_name || t("examAnalysis.unknownExam")}
+                  </p>
+                  <button
+                    onClick={(e) => handleDeleteHistory(record.id, e)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 text-xs transition-opacity shrink-0 ml-1"
+                    title={t("common.delete")}
+                  >
+                    ×
+                  </button>
+                </div>
+                {record.reference_exam_name && (
+                  <p className="text-xs text-gray-400 truncate">
+                    vs {record.reference_exam_name}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {new Date(record.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

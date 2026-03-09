@@ -1,14 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { getFlashcards, generateFlashcards, reviewFlashcard } from "../api/flashcards";
-import { getDocuments } from "../api/documents";
+import {
+  getDecks,
+  getDeckCards,
+  generateFlashcards,
+  reviewFlashcard,
+  renameDeck,
+  deleteDeck,
+} from "../api/flashcards";
+import type { FlashcardDeck } from "../api/flashcards";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { Flashcard } from "../types";
-import type { Document } from "../types";
 
 type Mode = "config" | "review";
+type CountPreset = "short" | "medium" | "long";
+type Difficulty = "easy" | "medium" | "hard";
 
 const ALL_CARD_TYPES = [
   "comprehension",
@@ -17,58 +25,126 @@ const ALL_CARD_TYPES = [
   "tricks",
   "confusion",
 ] as const;
-type CardType = typeof ALL_CARD_TYPES[number];
+type CardType = (typeof ALL_CARD_TYPES)[number];
+
+const COUNT_PRESETS: Record<CountPreset, number> = {
+  short: 25,
+  medium: 60,
+  long: 100,
+};
 
 export function FlashcardsPage() {
   const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
 
   const [mode, setMode] = useState<Mode>("config");
-  const [dueCount, setDueCount] = useState<number | null>(null);
+  const [activeDeck, setActiveDeck] = useState<FlashcardDeck | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [reviewLoading, setReviewLoading] = useState(false);
+
+  // Deck list
+  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
+  const [loadingDecks, setLoadingDecks] = useState(false);
+
+  // Inline rename
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Generate config
-  const [docs, setDocs] = useState<Document[]>([]);
-  const [genDocIds, setGenDocIds] = useState<Set<string>>(new Set());
-  const [genCount, setGenCount] = useState(20);
+  const [countPreset, setCountPreset] = useState<CountPreset>("medium");
+  const [genCount, setGenCount] = useState(60);
+  const [genDifficulty, setGenDifficulty] = useState<Difficulty>("medium");
   const [genCardTypes, setGenCardTypes] = useState<Set<CardType>>(new Set(ALL_CARD_TYPES));
   const [genTopic, setGenTopic] = useState("");
   const [genGuidance, setGenGuidance] = useState("");
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [genSuccess, setGenSuccess] = useState(false);
 
-  const refreshDueCount = () => {
-    if (courseId) {
-      getFlashcards(courseId, true).then((c) => setDueCount(c.length));
-    }
+  const fetchDecks = () => {
+    if (!courseId) return;
+    setLoadingDecks(true);
+    getDecks(courseId)
+      .then(setDecks)
+      .catch(() => {})
+      .finally(() => setLoadingDecks(false));
   };
 
   useEffect(() => {
-    if (courseId) {
-      getDocuments(courseId).then((ds) => {
-        setDocs(ds);
-        // Select all documents by default
-        setGenDocIds(new Set(ds.map((d) => d.id)));
-      });
-      refreshDueCount();
-    }
+    fetchDecks();
   }, [courseId]);
 
-  const startSession = async () => {
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  const handleSetPreset = (preset: CountPreset) => {
+    setCountPreset(preset);
+    setGenCount(COUNT_PRESETS[preset]);
+  };
+
+  const handleCountInput = (val: number) => {
+    const clamped = Math.max(5, Math.min(200, val));
+    setGenCount(clamped);
+    if (clamped <= 40) setCountPreset("short");
+    else if (clamped <= 80) setCountPreset("medium");
+    else setCountPreset("long");
+  };
+
+  const toggleCardType = (type: CardType) => {
+    setGenCardTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type) && next.size > 1) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
+
+  const handleGenerate = async () => {
     if (!courseId) return;
-    setReviewLoading(true);
+    setGenerating(true);
+    setGenError(null);
     try {
-      const all = await getFlashcards(courseId, true);
-      setCards(all);
+      const cardTypeParam =
+        genCardTypes.size === 1 ? Array.from(genCardTypes)[0] : "mixed";
+      const deck = await generateFlashcards(
+        courseId,
+        genCount,
+        cardTypeParam as string,
+        genDifficulty,
+        genTopic.trim() || undefined,
+        genGuidance.trim() || undefined,
+        i18n.language,
+      );
+      setDecks((prev) => [deck, ...prev]);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setGenError(
+        typeof detail === "string"
+          ? detail
+          : err instanceof Error
+          ? err.message
+          : t("common.error"),
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleStartDeck = async (deck: FlashcardDeck) => {
+    try {
+      const deckCards = await getDeckCards(deck.id);
+      setCards(deckCards);
+      setActiveDeck(deck);
       setIndex(0);
       setFlipped(false);
       setMode("review");
-    } finally {
-      setReviewLoading(false);
+    } catch {
+      /* silently fail */
     }
   };
 
@@ -84,69 +160,42 @@ export function FlashcardsPage() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!courseId || genDocIds.size === 0) return;
-    setGenerating(true);
-    setGenError(null);
-    setGenSuccess(false);
-    try {
-      const cardTypeParam =
-        genCardTypes.size === 1 ? Array.from(genCardTypes)[0] : "mixed";
-      const result = await generateFlashcards(
-        Array.from(genDocIds),
-        courseId,
-        genCount,
-        cardTypeParam as string,
-        genTopic.trim() || undefined,
-        genGuidance.trim() || undefined,
-        i18n.language,
-      );
-      if (result.length === 0) {
-        setGenError(t("flashcards.config.noCardsGenerated"));
-      } else {
-        setGenSuccess(true);
-        refreshDueCount();
+  const handleRenameStart = (deck: FlashcardDeck) => {
+    setRenamingId(deck.id);
+    setRenameValue(deck.name);
+  };
+
+  const handleRenameSave = async (deckId: string) => {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      try {
+        const updated = await renameDeck(deckId, trimmed);
+        setDecks((prev) => prev.map((d) => (d.id === deckId ? updated : d)));
+      } catch {
+        /* silently fail */
       }
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "שגיאה ביצירת כרטיסיות");
-    } finally {
-      setGenerating(false);
+    }
+    setRenamingId(null);
+  };
+
+  const handleDeleteDeck = async (deckId: string) => {
+    try {
+      await deleteDeck(deckId);
+      setDecks((prev) => prev.filter((d) => d.id !== deckId));
+    } catch {
+      /* silently fail */
     }
   };
-
-  const toggleCardType = (type: CardType) => {
-    setGenCardTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        if (next.size > 1) next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return next;
-    });
-  };
-
-  const toggleDoc = (id: string) => {
-    setGenDocIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const selectAllDocs = () => setGenDocIds(new Set(docs.map((d) => d.id)));
-  const deselectAllDocs = () => setGenDocIds(new Set());
 
   const backToConfig = () => {
     setMode("config");
     setCards([]);
+    setActiveDeck(null);
     setIndex(0);
     setFlipped(false);
-    refreshDueCount();
   };
 
-  // ── Review mode ─────────────────────────────────────────────────────────────
+  // ── Review mode ──────────────────────────────────────────────────────────────
   if (mode === "review") {
     const done = index >= cards.length;
     const current = cards[index];
@@ -155,10 +204,16 @@ export function FlashcardsPage() {
       <div className="max-w-xl mx-auto">
         <button
           onClick={backToConfig}
-          className="text-sm text-gray-400 hover:text-white mb-6 flex items-center gap-1 transition-colors"
+          className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1 transition-colors"
         >
           ← {t("common.back")}
         </button>
+
+        {activeDeck && (
+          <p className="text-xs text-gray-500 mb-4">
+            {activeDeck.name} · {t("flashcards.deckCards", { n: activeDeck.card_count })}
+          </p>
+        )}
 
         {done ? (
           <div className="text-center py-16">
@@ -174,7 +229,7 @@ export function FlashcardsPage() {
         ) : (
           <div>
             <p className="text-sm text-gray-400 mb-4">
-              {index + 1} / {cards.length} — {t("flashcards.due")}
+              {index + 1} / {cards.length}
               {current.topic && (
                 <span className="ml-2 text-blue-400">· {current.topic}</span>
               )}
@@ -219,112 +274,75 @@ export function FlashcardsPage() {
     );
   }
 
-  // ── Config mode — two-column layout ─────────────────────────────────────────
+  // ── Config mode ──────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-5 items-start">
-      {/* Left sidebar: Deck card + Recommendations */}
-      <div className="w-44 shrink-0 space-y-4">
-        <button
-          onClick={startSession}
-          disabled={reviewLoading || dueCount === 0}
-          className={`w-full text-left bg-gray-800 rounded-xl p-4 border-2 transition-all ${
-            dueCount && dueCount > 0
-              ? "border-blue-600 hover:border-blue-500 cursor-pointer"
-              : "border-gray-700 opacity-60 cursor-not-allowed"
-          }`}
-        >
-          <div className="text-3xl mb-2">🃏</div>
-          <p className="text-sm font-semibold text-white leading-tight">
-            {t("flashcards.deck.title")}
-          </p>
-          {reviewLoading || dueCount === null ? (
-            <p className="text-xs text-gray-500 mt-1">{t("common.loading")}</p>
-          ) : dueCount === 0 ? (
-            <p className="text-xs text-gray-500 mt-1">{t("flashcards.deck.empty")}</p>
-          ) : (
-            <p className="text-xs text-blue-400 mt-1 font-medium">
-              {dueCount} {t("flashcards.due")}
-            </p>
-          )}
-        </button>
+    <div className="max-w-2xl mx-auto space-y-5">
+      {/* Recommendations */}
+      {courseId && (
+        <RecommendationsPanel
+          courseId={courseId}
+          onTopicSelect={(topic) => setGenTopic(topic)}
+        />
+      )}
 
-        {courseId && (
-          <RecommendationsPanel
-            courseId={courseId}
-            onTopicSelect={(topic) => setGenTopic(topic)}
-          />
-        )}
-      </div>
-
-      {/* Right main: Generate form */}
-      <div className="flex-1 bg-gray-800 rounded-xl p-5 space-y-4">
+      {/* Generate config card */}
+      <div className="bg-gray-800 rounded-xl p-5 space-y-4">
         <h2 className="text-base font-semibold">{t("flashcards.config.generateTitle")}</h2>
 
-        {/* Documents — multi-select checkboxes */}
+        {/* Count presets */}
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm text-gray-400">
-              {t("flashcards.config.document")}
-            </label>
-            <div className="flex gap-2">
+          <p className="text-sm text-gray-400 mb-2">{t("flashcards.config.count")}</p>
+          <div className="flex gap-2 mb-2">
+            {(["short", "medium", "long"] as CountPreset[]).map((preset) => (
               <button
+                key={preset}
                 type="button"
-                onClick={selectAllDocs}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                onClick={() => handleSetPreset(preset)}
+                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  countPreset === preset
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                }`}
               >
-                {t("flashcards.config.selectAll")}
+                {t(`flashcards.${preset}`)}
               </button>
-              <span className="text-gray-600 text-xs">·</span>
-              <button
-                type="button"
-                onClick={deselectAllDocs}
-                className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                {t("flashcards.config.deselectAll")}
-              </button>
-            </div>
+            ))}
           </div>
-          {docs.length === 0 ? (
-            <p className="text-sm text-gray-500">{t("flashcards.config.noDocs")}</p>
-          ) : (
-            <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
-              {docs.map((d) => (
-                <label
-                  key={d.id}
-                  className="flex items-center gap-2 text-sm cursor-pointer group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={genDocIds.has(d.id)}
-                    onChange={() => toggleDoc(d.id)}
-                    className="accent-blue-500 shrink-0"
-                  />
-                  <span className="text-gray-300 group-hover:text-white transition-colors truncate">
-                    {d.original_name}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">{t("flashcards.exactCount")}:</span>
+            <input
+              type="number"
+              min={5}
+              max={200}
+              value={genCount}
+              onChange={(e) => handleCountInput(Number(e.target.value))}
+              className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500 text-center"
+            />
+          </div>
         </div>
 
-        {/* Count slider */}
+        {/* Difficulty */}
         <div>
-          <label className="block text-sm text-gray-400 mb-2">
-            {t("flashcards.config.count")}: <span className="text-white font-medium">{genCount}</span>
-          </label>
-          <input
-            type="range"
-            min={20}
-            max={150}
-            step={5}
-            value={genCount}
-            onChange={(e) => setGenCount(Number(e.target.value))}
-            className="w-full accent-blue-500"
-          />
-          <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-            <span>20</span>
-            <span>150</span>
+          <p className="text-sm text-gray-400 mb-2">{t("flashcards.difficulty")}</p>
+          <div className="flex gap-2">
+            {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setGenDifficulty(d)}
+                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  genDifficulty === d
+                    ? d === "easy"
+                      ? "bg-green-700 text-white"
+                      : d === "hard"
+                      ? "bg-red-700 text-white"
+                      : "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                }`}
+              >
+                {t(`flashcards.${d}`)}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -349,7 +367,7 @@ export function FlashcardsPage() {
           </div>
         </div>
 
-        {/* Topic filter */}
+        {/* Topic */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t("flashcards.config.topic")}</label>
           <input
@@ -373,19 +391,92 @@ export function FlashcardsPage() {
           />
         </div>
 
-        {genSuccess && (
-          <p className="text-green-400 text-sm">{t("flashcards.generateSuccess")}</p>
-        )}
-        {genError && (
-          <p className="text-red-400 text-sm">{genError}</p>
-        )}
+        {genError && <p className="text-red-400 text-sm">{genError}</p>}
+
         <button
           onClick={handleGenerate}
-          disabled={generating || genDocIds.size === 0}
+          disabled={generating}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
         >
           {generating ? t("common.loading") : t("flashcards.config.generate")}
         </button>
+      </div>
+
+      {/* Deck History */}
+      <div>
+        <h2 className="text-base font-semibold mb-3">{t("flashcards.deckHistory")}</h2>
+        {loadingDecks ? (
+          <p className="text-sm text-gray-500">{t("common.loading")}</p>
+        ) : decks.length === 0 ? (
+          <p className="text-sm text-gray-500">{t("flashcards.empty")}</p>
+        ) : (
+          <div className="space-y-2">
+            {decks.map((deck) => (
+              <div
+                key={deck.id}
+                className="bg-gray-800 rounded-xl px-4 py-3 border border-gray-700 flex items-center gap-3 hover:border-gray-600 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  {renamingId === deck.id ? (
+                    <input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleRenameSave(deck.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRenameSave(deck.id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      className="bg-gray-700 text-white text-sm rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-blue-400 w-full"
+                    />
+                  ) : (
+                    <p className="text-white text-sm font-medium truncate">{deck.name}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-gray-500">
+                    <span>{t("flashcards.deckCards", { n: deck.card_count })}</span>
+                    {deck.topic && <span>· {deck.topic}</span>}
+                    <span>·</span>
+                    <span
+                      className={
+                        deck.difficulty === "easy"
+                          ? "text-green-500"
+                          : deck.difficulty === "hard"
+                          ? "text-red-400"
+                          : "text-blue-400"
+                      }
+                    >
+                      {t(`flashcards.${deck.difficulty}`)}
+                    </span>
+                    <span>· {new Date(deck.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleStartDeck(deck)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-lg font-medium transition-colors"
+                  >
+                    {t("flashcards.startDeck")}
+                  </button>
+                  <button
+                    onClick={() => handleRenameStart(deck)}
+                    className="p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
+                    title={t("flashcards.renameDeck")}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => handleDeleteDeck(deck.id)}
+                    className="p-1.5 text-gray-500 hover:text-red-400 transition-colors rounded-lg hover:bg-gray-700"
+                    title={t("flashcards.deleteDeck")}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

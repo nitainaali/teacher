@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
-import { getQuizzes, generateQuiz } from "../api/quizzes";
+import { getQuizzes, generateQuiz, updateQuiz, deleteQuiz } from "../api/quizzes";
 import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { QuizSession } from "../types";
 
@@ -21,10 +21,17 @@ export function QuizzesPage() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTopic, setEditTopic] = useState("");
+  const [editDifficulty, setEditDifficulty] = useState("medium");
+
+  const fetchSessions = () => {
+    if (courseId) getQuizzes(courseId).then(setSessions);
+  };
+
   useEffect(() => {
-    if (courseId) {
-      getQuizzes(courseId).then(setSessions);
-    }
+    fetchSessions();
   }, [courseId]);
 
   const toggleType = (type: string) => {
@@ -62,9 +69,34 @@ export function QuizzesPage() {
       });
       navigate(`/course/${courseId}/learning/quizzes/${session.id}`);
     } catch (err) {
-      setGenError(err instanceof Error ? err.message : "שגיאה ביצירת הבחן");
+      setGenError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const startEdit = (s: QuizSession) => {
+    setEditingId(s.id);
+    setEditTopic(s.topic || "");
+    setEditDifficulty(s.difficulty || "medium");
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    try {
+      await updateQuiz(id, { topic: editTopic || undefined, difficulty: editDifficulty });
+      setEditingId(null);
+      fetchSessions();
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteQuiz(id);
+      fetchSessions();
+    } catch {
+      // silently ignore
     }
   };
 
@@ -94,7 +126,7 @@ export function QuizzesPage() {
       <form onSubmit={handleGenerate} className="bg-gray-800 rounded-xl p-5 space-y-4">
         <h2 className="text-base font-semibold">{t("quizzes.config.title")}</h2>
 
-        {/* Question types — multi-select checkboxes */}
+        {/* Question types */}
         <div>
           <p className="text-sm text-gray-400 mb-2">{t("quizzes.config.questionType")}</p>
           <div className="flex gap-2">
@@ -183,9 +215,7 @@ export function QuizzesPage() {
           </div>
         </div>
 
-        {genError && (
-          <p className="text-red-400 text-sm">{genError}</p>
-        )}
+        {genError && <p className="text-red-400 text-sm">{genError}</p>}
         <button
           type="submit"
           disabled={generating}
@@ -195,6 +225,7 @@ export function QuizzesPage() {
         </button>
       </form>
 
+      {/* History */}
       {sessions.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-gray-400 mb-3">{t("quizzes.config.history")}</h2>
@@ -202,15 +233,86 @@ export function QuizzesPage() {
             {sessions.map((s) => (
               <div
                 key={s.id}
-                onClick={() => navigate(`/course/${courseId}/learning/quizzes/${s.id}`)}
-                className="bg-gray-800 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:bg-gray-700 transition-colors"
+                className="bg-gray-800 rounded-xl p-4 border border-gray-700"
               >
-                <div>
-                  <p className="text-sm font-medium">{new Date(s.created_at).toLocaleDateString()}</p>
-                  <p className="text-xs text-gray-400">{s.total_questions} {t("quizzes.questions")} • {s.mode}</p>
-                </div>
-                {s.score !== null && (
-                  <span className="text-blue-400 font-bold">{Math.round(s.score)}%</span>
+                {editingId === s.id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={editTopic}
+                      onChange={(e) => setEditTopic(e.target.value)}
+                      placeholder={t("quizzes.config.topicPlaceholder")}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                    <select
+                      value={editDifficulty}
+                      onChange={(e) => setEditDifficulty(e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                    >
+                      {["easy", "medium", "hard"].map((d) => (
+                        <option key={d} value={d}>{t(`quizzes.config.${d}`)}</option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSaveEdit(s.id)}
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {t("common.save")}
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-xs text-gray-400 hover:text-white transition-colors"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-start gap-2">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/course/${courseId}/learning/quizzes/${s.id}`)}
+                    >
+                      <p className="font-medium text-white truncate">
+                        {s.topic || t("quizzes.unnamed")}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {s.total_questions} {t("quizzes.questions")}
+                        {s.difficulty ? ` • ${t(`quizzes.config.${s.difficulty}`)}` : ""}
+                        {` • ${new Date(s.created_at).toLocaleDateString(i18n.language)}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {s.score !== null ? (
+                        <span className="text-blue-400 font-bold text-sm">
+                          {Math.round(s.score)}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-yellow-400">{t("quizzes.notCompleted")}</span>
+                      )}
+                      <button
+                        onClick={() => navigate(`/course/${courseId}/learning/quizzes/${s.id}`)}
+                        className="text-gray-400 hover:text-white text-sm px-1 transition-colors"
+                        title="Open"
+                      >
+                        ▶
+                      </button>
+                      <button
+                        onClick={() => startEdit(s)}
+                        className="text-gray-400 hover:text-blue-400 text-sm px-1 transition-colors"
+                        title={t("quizzes.editMeta")}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDelete(s.id)}
+                        className="text-gray-400 hover:text-red-400 text-sm px-1 transition-colors"
+                        title={t("quizzes.delete")}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}

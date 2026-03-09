@@ -5,8 +5,8 @@ from typing import List, Optional
 from datetime import date, datetime, timezone
 
 from app.core.database import get_db
-from app.models.models import Flashcard
-from app.schemas.schemas import FlashcardOut, FlashcardReviewRequest
+from app.models.models import Flashcard, FlashcardDeck, Document
+from app.schemas.schemas import FlashcardOut, FlashcardReviewRequest, FlashcardDeckOut, FlashcardDeckRename
 from app.services.flashcard_generator import generate_flashcards
 from app.services.fsrs import fsrs_next
 from app.services import student_intelligence
@@ -14,46 +14,126 @@ from app.services import student_intelligence
 router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
 
-@router.post("/generate", response_model=List[FlashcardOut])
-async def generate(
-    document_ids: str,
+# ── Deck endpoints ────────────────────────────────────────────────────────────
+
+@router.get("/decks", response_model=List[FlashcardDeckOut])
+async def list_decks(
     course_id: str,
-    count: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(FlashcardDeck)
+        .where(FlashcardDeck.course_id == course_id)
+        .order_by(FlashcardDeck.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.get("/decks/{deck_id}/cards", response_model=List[FlashcardOut])
+async def get_deck_cards(deck_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Flashcard).where(Flashcard.deck_id == deck_id).order_by(Flashcard.next_review_date)
+    )
+    return result.scalars().all()
+
+
+@router.put("/decks/{deck_id}", response_model=FlashcardDeckOut)
+async def rename_deck(deck_id: str, data: FlashcardDeckRename, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
+    deck = result.scalar_one_or_none()
+    if not deck:
+        raise HTTPException(404, "Deck not found")
+    deck.name = data.name
+    await db.flush()
+    await db.refresh(deck)
+    await db.commit()
+    return deck
+
+
+@router.delete("/decks/{deck_id}", status_code=204)
+async def delete_deck(deck_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
+    deck = result.scalar_one_or_none()
+    if not deck:
+        raise HTTPException(404, "Deck not found")
+    await db.delete(deck)
+    await db.commit()
+
+
+# ── Generate (creates a new deck) ────────────────────────────────────────────
+
+@router.post("/generate", response_model=FlashcardDeckOut)
+async def generate(
+    course_id: str,
+    count: int = 60,
     card_type: str = "mixed",
+    difficulty: str = "medium",
     topic: Optional[str] = None,
     guidance: Optional[str] = None,
     language: str = "en",
     db: AsyncSession = Depends(get_db),
 ):
-    try:
-        ids = [d.strip() for d in document_ids.split(",") if d.strip()]
-        if not ids:
-            raise HTTPException(status_code=422, detail="No document IDs provided.")
-        per_doc_count = max(5, count // len(ids))
-        all_cards: List[Flashcard] = []
-        errors: List[str] = []
-        for doc_id in ids:
-            try:
-                cards = await generate_flashcards(db, doc_id, course_id, per_doc_count, card_type, topic, guidance, language)
-                all_cards.extend(cards)
-            except Exception as e:
-                errors.append(str(e)[:200])
-        await db.commit()
-        if not all_cards:
-            detail = "; ".join(errors) if errors else "No flashcards were generated. Make sure selected documents finished processing."
-            raise HTTPException(status_code=422, detail=detail)
-        return all_cards
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:300])
+    # Fetch all processed non-exam documents for the course
+    docs_result = await db.execute(
+        select(Document).where(
+            Document.course_id == course_id,
+            Document.processing_status == "done",
+            Document.doc_type != "exam",
+        )
+    )
+    docs = docs_result.scalars().all()
+    if not docs:
+        raise HTTPException(
+            status_code=422,
+            detail="No processed documents found for this course. Upload documents and wait for processing to finish.",
+        )
 
+    # Create deck
+    deck_name = f"{topic or card_type.title()} — {count} cards"
+    deck = FlashcardDeck(
+        course_id=course_id,
+        name=deck_name,
+        topic=topic,
+        difficulty=difficulty,
+        card_count=0,
+    )
+    db.add(deck)
+    await db.flush()
+
+    # Generate cards distributed across all docs
+    per_doc_count = max(5, count // len(docs))
+    all_cards: List[Flashcard] = []
+    errors: List[str] = []
+
+    for doc in docs:
+        try:
+            cards = await generate_flashcards(
+                db, doc.id, course_id, per_doc_count, card_type, topic, guidance, language, difficulty, deck.id
+            )
+            all_cards.extend(cards)
+        except Exception as e:
+            errors.append(str(e)[:200])
+
+    if not all_cards:
+        await db.rollback()
+        detail = "; ".join(errors) if errors else "No flashcards were generated."
+        raise HTTPException(status_code=422, detail=detail)
+
+    deck.card_count = len(all_cards)
+    await db.flush()
+    await db.refresh(deck)
+    await db.commit()
+    return deck
+
+
+# ── List all cards (legacy/general) ──────────────────────────────────────────
 
 @router.get("/", response_model=List[FlashcardOut])
 async def list_flashcards(
     course_id: Optional[str] = None,
     due_only: bool = False,
     topic: Optional[str] = None,
+    deck_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Flashcard).order_by(Flashcard.next_review_date)
@@ -63,9 +143,13 @@ async def list_flashcards(
         query = query.where(Flashcard.next_review_date <= date.today())
     if topic:
         query = query.where(Flashcard.topic == topic)
+    if deck_id:
+        query = query.where(Flashcard.deck_id == deck_id)
     result = await db.execute(query)
     return result.scalars().all()
 
+
+# ── Review ────────────────────────────────────────────────────────────────────
 
 @router.post("/{card_id}/review", response_model=FlashcardOut)
 async def review_flashcard(
@@ -78,13 +162,11 @@ async def review_flashcard(
     if not card:
         raise HTTPException(404, "Flashcard not found")
 
-    # Compute elapsed days since last review
     elapsed_days = 1
     if card.last_reviewed_at:
         delta = datetime.now(timezone.utc) - card.last_reviewed_at
         elapsed_days = max(1, delta.days)
 
-    # Map frontend quality (0=Again,1=Hard,2=Good,3=Easy) → FSRS grade (1-4)
     fsrs_grade = data.quality + 1
 
     new_s, new_d, interval, new_state, next_date = fsrs_next(
@@ -102,7 +184,6 @@ async def review_flashcard(
     card.next_review_date = next_date
     card.last_reviewed_at = datetime.now(timezone.utc)
 
-    # Log learning event for student intelligence tracking
     event_type = "flashcard_easy" if fsrs_grade >= 3 else "flashcard_hard"
     await student_intelligence.write_learning_event(
         db=db,

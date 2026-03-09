@@ -37,13 +37,18 @@ Single-user personal tool (no auth system needed).
 - Study recommendations: urgency = exam-topic importance × (1 − student strength)
 - **Output language**: every Claude call receives a `language` param ("en"/"he") injected into the system prompt as an explicit language instruction — AI always replies in the UI language
 - **SSE buffer parser**: all frontend SSE readers use `buffer += decode(); lines = buffer.split("\n"); buffer = lines.pop()` to handle TCP-chunked events correctly
+- **SSE corruption fix**: topic summary fetches final content from DB after stream ends (SSE chunks with embedded `\n` corrupt accumulated strings — DB is authoritative)
+- **RTL/LTR**: `MarkdownContent` uses `dir="auto"` on all text elements so Hebrew paragraphs are RTL and English paragraphs are LTR within the same document
+- **Embedding model**: `paraphrase-multilingual-MiniLM-L12-v2` (384-dim, 50+ languages, supports Hebrew+English)
+- **scan_quality**: computed on every document upload — "good" (has Hebrew), "partial" (no Hebrew but >30 words), "poor" (≤30 words) — stored in `documents.metadata`
 
 ## Database — Key Tables
 
 - `courses`: organizes all content
 - `documents` + `document_chunks`: PDFs processed via Claude Vision, chunked + embedded
+  - `documents.metadata` JSONB: `{"scan_quality": "good"|"partial"|"poor", "word_count": N, "error": "..."}`
 - `learning_events`: every interaction logged with topic + event_type, used to build student profile
-  - event types include: `exam_topic` (from exam uploads), `quiz_result`, `flashcard_review`, etc.
+  - event types include: `exam_topic` (from exam uploads), `document_topic` (from knowledge docs), `quiz_result`, `flashcard_review`, etc.
 - `student_performance`: per-topic strength/weakness tracking (populated after every interaction)
 - `chat_sessions` + `chat_messages`: full chat history
 - `flashcards`: FSRS fields — `stability`, `difficulty_fsrs`, `fsrs_state` + legacy SM-2 fields kept
@@ -60,12 +65,14 @@ Single-user personal tool (no auth system needed).
 - Courses (create, list, detail, **edit name/color via pencil icon modal**)
 - Document upload + Claude Vision processing + RAG embeddings — **multi-file support** (drag-drop or picker, per-file status ⏳↑✓✗)
 - Document classification: summaries/lectures = raw material; exams = topic importance signal
+- **Document scan quality badge** — Knowledge page shows ⚠ "לא נסרק כראוי" for partial/poor scans
+- **Document topic extraction in Hebrew** — `_extract_document_topics()` and `_extract_exam_topics()` output Hebrew topic names
 - Homework checker (**multi-file**: images + PDFs, knowledge mode toggle + streaming structured feedback)
 - Chat (streaming SSE, RAG, full history persistence, MarkdownContent rendering)
 - Flashcards — FSRS-4.5 spaced repetition, 5 card types (comprehension, memorization, application, tricks, confusion), count slider 20–150, topic filter, guidance param
 - Quizzes — generator + grader, multi-select question types (MC / free-text / mixed), difficulty, topic filter
 - Exam analysis — full streaming implementation via Claude Vision, per-topic breakdown table, student experience input, reference exam comparison, weak topics logged to learning_events; **retry on Anthropic 5xx errors**; friendly error display when API fails
-- Topic summary — streaming, MarkdownContent, guidance param, **free-text topic input + suggested chips**, **history panel** (accordion per topic, auto-saved to `topic_summaries` DB after each generation)
+- Topic summary — streaming, MarkdownContent, guidance param, **free-text topic input + suggested chips**, **history panel** (sidebar per topic, auto-saved to `topic_summaries` DB after each generation); **loads from DB after stream** (not from SSE accumulated string)
 - Study recommendations engine — urgency = exam-topic importance × weakness, shown in Flashcards + Quizzes pages
 - Exam document topic extraction — on upload, Claude Haiku extracts topics → logged as `exam_topic` events
 - `student_intelligence.py` — unified learning context + teaching style injected into all Claude calls
@@ -73,6 +80,8 @@ Single-user personal tool (no auth system needed).
 - Settings — student profile + teaching style selector (direct/balanced/supportive) + style_notes
 - i18n (Hebrew/English toggle, RTL layout) — all strings in en.json + he.json
 - **AI output language** — all AI endpoints accept `language` param; `build_system_prompt` injects explicit language instruction so Claude always responds in the active UI language
+- **Startup recovery** — on server start, documents stuck in "processing" (e.g. from container crash) are auto-reset to "error" so user can delete + re-upload
+- **CourseTabBar resilience** — retries `getCourses()` up to 3 times with 1.5s delay; shows `···` while loading (prevents blank tab bar after Docker rebuild)
 
 ### Scaffolded (UI exists, logic partially stubbed)
 
@@ -93,10 +102,14 @@ Single-user personal tool (no auth system needed).
 - Always run `extract_topic_background()` after writing to `learning_events`
 - Streaming responses use SSE (`EventSourceResponse`) — same pattern as homework checker / exam analysis
 - Frontend SSE readers MUST use the buffer approach: `buffer += decoder.decode(value, {stream:true}); const lines = buffer.split("\n"); buffer = lines.pop() ?? ""`
+- **After streaming AI content: always load final content from DB**, not from accumulated SSE string (embedded `\n` in chunks corrupt the accumulation)
 - All new DB tables need an Alembic migration
 - Math: always use `$...$` (inline) or `$$...$$` (display) LaTeX — never plain text formulas
 - `MarkdownContent` component must be used for all AI-generated text (chat, summaries, quiz feedback, exam analysis, homework)
+- `MarkdownContent` elements use `dir="auto"` — do not remove this, it enables correct RTL/LTR per paragraph
 - FSRS quality ratings: 0=Again, 1=Hard, 2=Good, 3=Easy (maps to FSRS grade 1–4 in backend)
+- Topic extraction prompts (`_extract_document_topics`, `_extract_exam_topics`) must return Hebrew — always include `"Return a JSON array of strings in Hebrew (עברית)"` in the prompt
+- RAG top_k=15 for topic summary (higher than chat/homework to improve recall for niche subtopics)
 
 ## Key Services
 
@@ -107,17 +120,30 @@ Single-user personal tool (no auth system needed).
 | `services/recommendations.py` | Study recommendations: urgency = importance × weakness |
 | `services/exam_analyzer.py` | Streaming Claude Vision exam analysis + retry on 5xx |
 | `services/flashcard_generator.py` | Generates 5 card types with topic/guidance/language params |
-| `services/document_processor.py` | Claude Vision PDF processing + exam topic extraction |
+| `services/document_processor.py` | Claude Vision PDF processing + Hebrew topic extraction + scan_quality |
 | `services/claude.py` | `BASE_SYSTEM_PROMPT` + shared Claude client; `build_system_prompt(db, course_id, language)` injects language instruction |
-| `components/MarkdownContent.tsx` | KaTeX + react-markdown renderer used everywhere |
+| `services/embeddings.py` | `paraphrase-multilingual-MiniLM-L12-v2` (384-dim) embedding + chunking (500 words, 50 overlap) |
+| `services/rag.py` | Cosine similarity search via pgvector; filters by course_id + upload_source |
+| `components/MarkdownContent.tsx` | KaTeX + react-markdown renderer + `dir="auto"` for RTL/LTR |
 | `components/RecommendationsPanel.tsx` | Urgency-color-coded topic recommendations widget |
 
 ## API — Learning Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/learning/topic-summary` | POST (SSE) | Stream topic summary; auto-saves to `topic_summaries` on completion |
+| `/api/learning/topic-summary` | POST (SSE) | Stream topic summary (top_k=15); auto-saves to `topic_summaries` on completion |
 | `/api/learning/topic-summaries` | GET | List saved summaries (`?course_id=&topic=`) |
+| `/api/learning/topic-summaries/{id}` | DELETE | Delete a saved summary |
+
+## One-time Migration Scripts (`backend/scripts/`)
+
+| Script | Purpose |
+|--------|---------|
+| `backfill_hebrew_topics.py` | Delete English `document_topic` events → re-extract in Hebrew (run once after prompt change) |
+| `update_scan_quality.py` | Backfill `scan_quality` in `documents.metadata` for pre-existing documents |
+| `reprocess_garbled.py` | Re-run Claude Vision on documents with poor text extraction |
+| `backfill_document_topics.py` | Re-extract topics for documents processed before topic extraction was added |
+| `re_embed.py` | Re-embed all document chunks with the new multilingual embedding model |
 
 ## Running Locally
 

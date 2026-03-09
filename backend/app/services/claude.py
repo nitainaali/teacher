@@ -16,6 +16,11 @@ ACCURACY RULES — follow these strictly:
 - When using general knowledge (not from provided materials): be explicit that this comes from general knowledge, not the student's specific course.
 - Prefer exact results over approximations. When approximations are used, state them explicitly (e.g., "using the small-angle approximation sin θ ≈ θ").
 - Do not invent circuit values, component specifications, or problem parameters that aren't given.
+
+FORMATTING RULES:
+- Use clear structure: headers, bullet points, and proper spacing between sections.
+- Add blank lines between paragraphs for readability.
+- When switching between explanation and math, always separate them with a line break.
 """
 
 
@@ -27,8 +32,11 @@ async def build_system_prompt(
     profile_context = await student_intelligence.build_student_context(db, course_id)
     if language == "he":
         lang_instruction = (
-            "LANGUAGE REQUIREMENT: You MUST respond entirely in Hebrew (עברית). "
-            "All explanations, feedback, summaries, flashcards, quiz questions, and any generated content must be in Hebrew."
+            "LANGUAGE: Respond in Hebrew (עברית). "
+            "Variable names, code, and equations — keep in English/Latin as-is. "
+            "Avoid mixing languages mid-sentence; if unavoidable, add a space between Hebrew and Latin text and prefer breaking to a new line.\n"
+            "הסבר בעברית. שמות משתנים, קוד ומשוואות — השאר באנגלית. "
+            "השתדל להימנע ממעבר שפות באמצע משפט; אם אין ברירה — הוסף רווחים משמעותיים בין עברית לאנגלית ורד שורה."
         )
     else:
         lang_instruction = "LANGUAGE REQUIREMENT: Respond in English."

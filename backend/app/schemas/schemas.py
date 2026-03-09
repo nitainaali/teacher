@@ -22,9 +22,14 @@ class CourseOut(BaseModel):
     name: str
     description: Optional[str]
     color: Optional[str]
+    sort_order: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CourseReorderRequest(BaseModel):
+    ids: List[str]  # ordered list of course IDs
 
 
 # ── Documents ────────────────────────────────────────────────────────────────
@@ -37,6 +42,7 @@ class DocumentOut(BaseModel):
     doc_type: str
     processing_status: str
     extracted_text: Optional[str]
+    upload_source: str = "knowledge"
     created_at: datetime
     metadata_: Optional[dict] = None
 
@@ -72,6 +78,7 @@ class FlashcardOut(BaseModel):
     id: str
     course_id: str
     source_document_id: Optional[str]
+    deck_id: Optional[str] = None
     front: str
     back: str
     topic: Optional[str]
@@ -90,6 +97,22 @@ class FlashcardOut(BaseModel):
 
 class FlashcardReviewRequest(BaseModel):
     quality: int  # 0=Again, 1=Hard, 2=Good, 3=Easy
+
+
+class FlashcardDeckOut(BaseModel):
+    id: str
+    course_id: str
+    name: str
+    topic: Optional[str]
+    difficulty: str
+    card_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FlashcardDeckRename(BaseModel):
+    name: str
 
 
 # ── Quizzes ───────────────────────────────────────────────────────────────────
@@ -129,12 +152,19 @@ class QuizSessionOut(BaseModel):
     completed_at: Optional[datetime]
     score: Optional[float]
     total_questions: int
+    topic: Optional[str] = None
+    difficulty: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
 
 class QuizSessionDetail(QuizSessionOut):
     questions: List[QuizQuestionOut]
+
+
+class QuizSessionUpdate(BaseModel):
+    topic: Optional[str] = None
+    difficulty: Optional[str] = None
 
 
 class QuizSubmitRequest(BaseModel):
@@ -203,6 +233,7 @@ class ChatMessageRequest(BaseModel):
     course_id: Optional[str] = None
     knowledge_mode: str = "general"
     language: str = "en"
+    source: Optional[str] = None  # "homework_chat" → uses separate event_type
 
 
 class TopicSummaryRequest(BaseModel):
@@ -240,5 +271,36 @@ class ChatSessionOut(BaseModel):
     knowledge_mode: str
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ChatSessionWithFirstMessage(ChatSessionOut):
+    first_message: Optional[str] = None
+
+
+# ── Homework History ───────────────────────────────────────────────────────────
+
+class HomeworkSubmissionOut(BaseModel):
+    id: str
+    course_id: Optional[str]
+    user_description: Optional[str]
+    filenames: Optional[List[Any]]
+    analysis_result: str
+    score_text: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Exam Analysis History ──────────────────────────────────────────────────────
+
+class ExamAnalysisRecordOut(BaseModel):
+    id: str
+    course_id: Optional[str]
+    reference_exam_name: Optional[str]
+    student_exam_name: Optional[str]
+    analysis_result: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -23,6 +23,8 @@ async def generate_quiz(
         mode=mode,
         knowledge_mode=knowledge_mode,
         total_questions=count,
+        topic=topic,
+        difficulty=difficulty,
     )
     db.add(session)
     await db.flush()

@@ -43,12 +43,21 @@ async def get_progress(course_id: Optional[str] = None, db: AsyncSession = Depen
 
 @router.get("/topics", response_model=List[TopicPerformance])
 async def get_topic_performance(course_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    # Exclude homework and exam events — only real study interactions should appear as topic suggestions
+    excluded_event_types = [
+        "homework_check", "homework_error", "homework_correct", "homework_review",
+        "exam_topic",
+        "homework_chat",  # HomeworkChat follow-up messages — not real course topics
+    ]
     query = (
         select(
             LearningEvent.topic,
             func.count().label("event_count"),
         )
-        .where(LearningEvent.topic.isnot(None))
+        .where(
+            LearningEvent.topic.isnot(None),
+            ~LearningEvent.event_type.in_(excluded_event_types),
+        )
     )
     if course_id:
         query = query.where(LearningEvent.course_id == course_id)

@@ -102,15 +102,20 @@ export function ChatPage() {
           {sessions.map((s) => (
             <div
               key={s.id}
-              className={`group flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-600 transition-colors ${s.id === activeSessionId ? "bg-gray-600" : ""}`}
+              className={`group flex items-start justify-between px-3 py-2.5 cursor-pointer hover:bg-gray-600 transition-colors ${s.id === activeSessionId ? "bg-gray-600" : ""}`}
               onClick={() => loadMessages(s.id)}
             >
-              <span className="text-xs text-gray-300 truncate">
-                {new Date(s.created_at).toLocaleDateString()}
-              </span>
+              <div className="flex-1 min-w-0 pr-1">
+                {s.first_message && (
+                  <p className="text-xs text-gray-200 truncate font-medium">{s.first_message}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {new Date(s.created_at).toLocaleDateString()}
+                </p>
+              </div>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
-                className="hidden group-hover:block text-gray-500 hover:text-red-400 text-xs"
+                className="hidden group-hover:block text-gray-500 hover:text-red-400 text-xs shrink-0"
               >×</button>
             </div>
           ))}

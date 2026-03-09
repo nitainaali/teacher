@@ -74,6 +74,11 @@
     "uploading": "מעלה...",
     "uploadSuccess": "הקובץ הועלה בהצלחה",
     "dragDrop": "גרור ושחרר קובץ כאן, או לחץ לבחירה",
+    "duplicate": "קובץ זה כבר הועלה בשם \"{{name}}\"",
+    "duplicateGeneric": "קובץ זה כבר הועלה.",
+    "deleteError": "מחיקת הקובץ נכשלה. נסה שוב.",
+    "scanWarning": "לא נסרק כראוי",
+    "scanWarningTooltip": "הקובץ עובד אך ייתכן שהתוכן לא חולץ במלואו",
     "formats": {
       "pdf": "PDF",
       "image": "תמונה"
@@ -112,7 +117,11 @@
     "summarizing": "מייצר סיכום...",
     "suggestedTopics": "נושאים מוצעים מהיסטוריית הלמידה",
     "history": "סיכומים קודמים",
-    "chatPlaceholder": "שאל שאלת המשך על הנושא הזה..."
+    "chatPlaceholder": "שאל שאלת המשך על הנושא הזה...",
+    "regenerate": "צור סיכום חדש",
+    "deleteSummary": "מחק סיכום",
+    "courseTopics": "נושאי הקורס",
+    "noDocuments": "אין חומרי קורס מועלים עדיין. עבור לידע פנימי והעלה הרצאות או ספרי לימוד תחילה."
   },
   "flashcards": {
     "title": "כרטיסיות",
@@ -133,6 +142,18 @@
       "empty": "אין כרטיסיות לחזרה כרגע"
     },
     "generateSuccess": "✓ הכרטיסיות נוצרו! לחץ על החפיסה לסקירה.",
+    "deckHistory": "היסטוריית חפיסות",
+    "short": "קצר",
+    "medium": "בינוני",
+    "long": "ארוך",
+    "exactCount": "כמות מדויקת",
+    "difficulty": "רמת קושי",
+    "easy": "קל",
+    "hard": "קשה",
+    "startDeck": "התחל",
+    "renameDeck": "שנה שם חפיסה",
+    "deleteDeck": "מחק חפיסה",
+    "deckCards": "{{n}} כרטיסיות",
     "config": {
       "title": "הגדרת סשן כרטיסיות",
       "cardType": "סוגי כרטיסיות",
@@ -201,7 +222,11 @@
       "topicLabel": "נושא",
       "createQuiz": "צור בחן",
       "history": "בחנים קודמים"
-    }
+    },
+    "unnamed": "בחן ללא שם",
+    "notCompleted": "לא הושלם",
+    "delete": "מחק בחן",
+    "editMeta": "ערוך פרטי בחן"
   },
   "chat": {
     "title": "שאל שאלה",
@@ -229,7 +254,16 @@
       "suggestions": "הצעות",
       "step": "שלב",
       "correction": "תיקון"
-    }
+    },
+    "history": "הגשות קודמות",
+    "noHistory": "אין הגשות קודמות עדיין.",
+    "noFiles": "לא הועלו קבצים.",
+    "description": "תיאור (אופציונלי)",
+    "descriptionPlaceholder": "תאר את המטלה או במה אתה צריך עזרה...",
+    "chatTitle": "שאלות המשך",
+    "chatPlaceholder": "שאל שאלת המשך על המשוב...",
+    "chatContextPrefix": "הנה המשוב שקיבלתי על המטלה שלי",
+    "chatHint": "שאל שאלת המשך על המשוב שלמעלה"
   },
   "examAnalysis": {
     "title": "ניתוח מבחן",
@@ -246,7 +280,10 @@
     "noFile": "אנא העלה קובץ מבחן תחילה",
     "savedToProfile": "הניתוח נשמר לפרופיל הלמידה שלך",
     "results": "תוצאות הניתוח",
-    "comingSoon": "ניתוח מבחן מלא בקרוב. העלה את המבחן שלך כדי להתחיל."
+    "comingSoon": "ניתוח מבחן מלא בקרוב. העלה את המבחן שלך כדי להתחיל.",
+    "analysisHistory": "ניתוחים קודמים",
+    "noHistory": "אין ניתוחים קודמים עדיין.",
+    "unknownExam": "מבחן ללא שם"
   },
   "diagnosis": {
     "title": "אבחון מצב",

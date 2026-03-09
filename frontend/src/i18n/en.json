@@ -74,6 +74,11 @@
     "uploading": "Uploading...",
     "uploadSuccess": "File uploaded successfully",
     "dragDrop": "Drag & drop a file here, or click to select",
+    "duplicate": "This file was already uploaded as \"{{name}}\"",
+    "duplicateGeneric": "This file was already uploaded.",
+    "deleteError": "Failed to delete file. Please try again.",
+    "scanWarning": "Poor scan",
+    "scanWarningTooltip": "File was processed but content may not have been fully extracted",
     "formats": {
       "pdf": "PDF",
       "image": "Image"
@@ -112,7 +117,11 @@
     "summarizing": "Generating summary...",
     "suggestedTopics": "Suggested topics from your history",
     "history": "Previous summaries",
-    "chatPlaceholder": "Ask a follow-up question about this topic..."
+    "chatPlaceholder": "Ask a follow-up question about this topic...",
+    "regenerate": "Regenerate new summary",
+    "courseTopics": "Course Topics",
+    "noDocuments": "No course materials uploaded yet. Go to Internal Knowledge and upload lecture notes or textbooks first.",
+    "deleteSummary": "Delete summary"
   },
   "flashcards": {
     "title": "Flashcards",
@@ -133,6 +142,18 @@
       "empty": "No cards due right now"
     },
     "generateSuccess": "✓ Cards generated! Click the deck to review.",
+    "deckHistory": "Deck History",
+    "short": "Short",
+    "medium": "Medium",
+    "long": "Long",
+    "exactCount": "Exact count",
+    "difficulty": "Difficulty",
+    "easy": "Easy",
+    "hard": "Hard",
+    "startDeck": "Start",
+    "renameDeck": "Rename deck",
+    "deleteDeck": "Delete deck",
+    "deckCards": "{{n}} cards",
     "config": {
       "title": "Flashcard Session Setup",
       "cardType": "Card types",
@@ -201,7 +222,11 @@
       "topicLabel": "Topic",
       "createQuiz": "Create Quiz",
       "history": "Previous quizzes"
-    }
+    },
+    "unnamed": "Untitled quiz",
+    "notCompleted": "Not completed",
+    "delete": "Delete quiz",
+    "editMeta": "Edit quiz info"
   },
   "chat": {
     "title": "Ask a Question",
@@ -229,7 +254,16 @@
       "suggestions": "Suggestions",
       "step": "Step",
       "correction": "Correction"
-    }
+    },
+    "history": "Past Submissions",
+    "noHistory": "No past submissions yet.",
+    "noFiles": "No files uploaded.",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "Describe the assignment or what you need help with...",
+    "chatTitle": "Follow-up Chat",
+    "chatPlaceholder": "Ask a follow-up question about the feedback...",
+    "chatContextPrefix": "Here is the feedback I received on my homework",
+    "chatHint": "Ask a follow-up question about the feedback above"
   },
   "examAnalysis": {
     "title": "Exam Analysis",
@@ -246,7 +280,10 @@
     "noFile": "Please upload an exam file first",
     "savedToProfile": "Analysis saved to your learning profile",
     "results": "Analysis Results",
-    "comingSoon": "Full exam analysis coming soon. Upload your exam to begin."
+    "comingSoon": "Full exam analysis coming soon. Upload your exam to begin.",
+    "analysisHistory": "Past Analyses",
+    "noHistory": "No past analyses yet.",
+    "unknownExam": "Unnamed exam"
   },
   "diagnosis": {
     "title": "Status Diagnosis",

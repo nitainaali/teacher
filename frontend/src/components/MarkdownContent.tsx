@@ -35,26 +35,26 @@ const components: Components = {
     );
   },
   h1: ({ children }) => (
-    <h1 className="text-xl font-bold mt-4 mb-2 text-white">{children}</h1>
+    <h1 dir="auto" className="text-xl font-bold mt-4 mb-2 text-white">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-lg font-semibold mt-3 mb-2 text-white border-b border-gray-700 pb-1">
+    <h2 dir="auto" className="text-lg font-semibold mt-3 mb-2 text-white border-b border-gray-700 pb-1">
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-base font-medium mt-2 mb-1 text-gray-100">{children}</h3>
+    <h3 dir="auto" className="text-base font-medium mt-2 mb-1 text-gray-100">{children}</h3>
   ),
   ul: ({ children }) => (
-    <ul className="list-disc list-inside space-y-1 my-2 text-gray-300">{children}</ul>
+    <ul dir="auto" className="list-disc list-inside space-y-1 my-2 text-gray-300">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="list-decimal list-inside space-y-1 my-2 text-gray-300">{children}</ol>
+    <ol dir="auto" className="list-decimal list-inside space-y-1 my-2 text-gray-300">{children}</ol>
   ),
-  li: ({ children }) => <li className="text-gray-300 leading-relaxed">{children}</li>,
-  p: ({ children }) => <p className="mb-2 leading-relaxed text-gray-200">{children}</p>,
+  li: ({ children }) => <li dir="auto" className="text-gray-300 leading-relaxed">{children}</li>,
+  p: ({ children }) => <p dir="auto" className="mb-2 leading-relaxed text-gray-200">{children}</p>,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-400 my-2">
+    <blockquote dir="auto" className="border-l-4 border-blue-500 pl-4 italic text-gray-400 my-2">
       {children}
     </blockquote>
   ),
@@ -76,7 +76,7 @@ const components: Components = {
 export function MarkdownContent({ content, className = "" }: MarkdownContentProps) {
   if (!content) return null;
   return (
-    <div className={`markdown-content ${className}`}>
+    <div dir="auto" className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         rehypePlugins={[rehypeKatex]}

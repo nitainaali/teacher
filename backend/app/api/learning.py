@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import anthropic as _anthropic
 
 from app.core.database import get_db
 from app.models.models import TopicSummary
@@ -18,14 +19,24 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
     """Stream a comprehensive summary of a specific topic from course materials."""
 
     async def event_generator():
-        context = await rag.retrieve_context(db, data.topic, data.course_id, top_k=6)
-        extra_system = None
+        # Only search knowledge documents (not exam uploads) for topic summaries
+        context = await rag.retrieve_context(
+            db, data.topic, data.course_id, top_k=15, upload_source="knowledge"
+        )
         if context:
             extra_system = (
-                f"You are summarizing the topic '{data.topic}' for the student using their course materials.\n"
-                "IMPORTANT: Base your summary on the provided course materials. "
-                "If a concept is not covered in the materials, say so explicitly rather than inventing content.\n\n"
-                f"Relevant course materials:\n{context}"
+                f"STRICT RULE: Summarize the topic '{data.topic}' EXCLUSIVELY from the course materials provided below. "
+                "Do NOT use any external knowledge or information from your training data. "
+                "If a concept is not found in the materials, explicitly say so rather than inventing content.\n\n"
+                f"Course materials:\n{context}"
+            )
+        else:
+            extra_system = (
+                f"STRICT RULE: You must summarize '{data.topic}' based ONLY on the student's uploaded course materials. "
+                "However, NO relevant course materials were found in their documents for this topic. "
+                "You MUST inform the student clearly that this topic does not appear in their uploaded materials, "
+                "and suggest they upload the relevant lecture notes or textbook chapters first. "
+                "Do NOT provide a general explanation of the topic from external knowledge."
             )
 
         guidance_str = f"\n\nAdditional instruction from student: {data.guidance}" if data.guidance else ""
@@ -53,7 +64,11 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
                 full_response += chunk
                 yield f"data: {chunk}\n\n"
         except Exception as e:
-            yield f"data: [ERROR: {str(e)[:100]}]\n\n"
+            if isinstance(e, _anthropic.APIStatusError):
+                error_msg = f"שגיאת Anthropic API ({e.status_code}): {e.message}"
+            else:
+                error_msg = str(e)[:300]
+            yield f"data: [ERROR: {error_msg}]\n\n"
             yield "data: [DONE]\n\n"
             return
 
@@ -92,6 +107,18 @@ async def list_topic_summaries(
         query = query.where(TopicSummary.topic == topic)
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.delete("/topic-summaries/{summary_id}", status_code=204)
+async def delete_topic_summary(summary_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a specific saved topic summary by ID."""
+    result = await db.execute(select(TopicSummary).where(TopicSummary.id == summary_id))
+    summary = result.scalar_one_or_none()
+    if not summary:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Summary not found")
+    await db.delete(summary)
+    await db.commit()
 
 
 @router.get("/recommendations")
