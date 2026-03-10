@@ -56,10 +56,13 @@ export function TopicSummaryPage() {
     summariesByTopic[s.topic].push(s);
   }
 
-  // All unique topics (summaries first, then progress topics not already covered)
-  const allTopicNames = Array.from(
-    new Set([...Object.keys(summariesByTopic), ...topics.map((e) => e.topic)])
-  );
+  // Topics that have at least one saved summary
+  const topicsWithSummaries = Object.keys(summariesByTopic);
+
+  // Topics from progress that don't yet have a summary
+  const topicsWithoutSummaries = topics
+    .map((e) => e.topic)
+    .filter((t) => !summariesByTopic[t]);
 
   const selectTopic = (topicName: string) => {
     setSelectedTopicName(topicName);
@@ -155,66 +158,102 @@ export function TopicSummaryPage() {
     <div className="flex gap-4 h-full">
       {/* ── Left column: topic list ────────────────────────────────────── */}
       <div className="w-52 shrink-0 bg-gray-800 rounded-xl border border-gray-700 overflow-y-auto max-h-[calc(100vh-8rem)]">
-        {/* Title */}
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2.5 pt-2.5 pb-1 border-b border-gray-700">
-          {t("topicSummary.courseTopics")}
-        </p>
-
-        {allTopicNames.length === 0 ? (
+        {topicsWithSummaries.length === 0 && topicsWithoutSummaries.length === 0 ? (
           <p className="text-xs text-gray-500 p-3">{t("topicSummary.noTopics")}</p>
         ) : (
-          <div className="p-1.5 space-y-0.5">
-            {allTopicNames.map((topicName) => {
-              const isSelected = selectedTopicName === topicName;
-              const saved = summariesByTopic[topicName] || [];
-              return (
-                <div key={topicName}>
-                  <button
-                    onClick={() => selectTopic(topicName)}
-                    className={[
-                      "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
-                      isSelected
-                        ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
-                        : "text-gray-300 hover:bg-gray-700",
-                    ].join(" ")}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
-                      <span className="truncate">{topicName}</span>
-                    </span>
-                  </button>
-
-                  {isSelected && saved.length > 0 && (
-                    <div className="ml-3 mt-0.5 mb-1 space-y-0.5">
-                      {saved.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectSummaryItem(item)}
-                          className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-gray-700/50 hover:bg-gray-700 cursor-pointer group"
+          <>
+            {/* ── Ready Summaries ─────────────────────────────────── */}
+            {topicsWithSummaries.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2.5 pt-2.5 pb-1 border-b border-gray-700">
+                  {t("topicSummary.readySummaries")}
+                </p>
+                <div className="p-1.5 space-y-0.5">
+                  {topicsWithSummaries.map((topicName) => {
+                    const isSelected = selectedTopicName === topicName;
+                    const saved = summariesByTopic[topicName] || [];
+                    return (
+                      <div key={topicName}>
+                        <button
+                          onClick={() => selectTopic(topicName)}
+                          className={[
+                            "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
+                            isSelected
+                              ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
+                              : "text-gray-300 hover:bg-gray-700",
+                          ].join(" ")}
                         >
-                          <span className="text-xs text-gray-500 shrink-0">📄</span>
-                          <span className="text-xs text-gray-300 flex-1 min-w-0 truncate">
-                            {new Date(item.created_at).toLocaleDateString(i18n.language, {
-                              day: "numeric",
-                              month: "short",
-                            })}
-                            {item.guidance ? ` — ${item.guidance.slice(0, 12)}` : ""}
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
+                            <span className="truncate">{topicName}</span>
                           </span>
-                          <button
-                            onClick={(e) => handleDeleteSummary(item.id, e)}
-                            className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs shrink-0"
-                            title={t("topicSummary.deleteSummary")}
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        </button>
+
+                        {isSelected && saved.length > 0 && (
+                          <div className="ml-3 mt-0.5 mb-1 space-y-0.5">
+                            {saved.map((item) => (
+                              <div
+                                key={item.id}
+                                onClick={() => handleSelectSummaryItem(item)}
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-gray-700/50 hover:bg-gray-700 cursor-pointer group"
+                              >
+                                <span className="text-xs text-gray-500 shrink-0">📄</span>
+                                <span className="text-xs text-gray-300 flex-1 min-w-0 truncate">
+                                  {new Date(item.created_at).toLocaleDateString(i18n.language, {
+                                    day: "numeric",
+                                    month: "short",
+                                  })}
+                                  {item.guidance ? ` — ${item.guidance.slice(0, 12)}` : ""}
+                                </span>
+                                <button
+                                  onClick={(e) => handleDeleteSummary(item.id, e)}
+                                  className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs shrink-0"
+                                  title={t("topicSummary.deleteSummary")}
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </>
+            )}
+
+            {/* ── Summary Suggestions ──────────────────────────────── */}
+            {topicsWithoutSummaries.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2.5 pt-2.5 pb-1 border-b border-gray-700">
+                  {t("topicSummary.summarySuggestions")}
+                </p>
+                <div className="p-1.5 space-y-0.5">
+                  {topicsWithoutSummaries.map((topicName) => {
+                    const isSelected = selectedTopicName === topicName;
+                    return (
+                      <button
+                        key={topicName}
+                        onClick={() => selectTopic(topicName)}
+                        className={[
+                          "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
+                          isSelected
+                            ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
+                            : "text-gray-300 hover:bg-gray-700",
+                        ].join(" ")}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
+                          <span className="truncate">{topicName}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 

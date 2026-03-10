@@ -121,7 +121,9 @@
     "regenerate": "Regenerate new summary",
     "courseTopics": "Course Topics",
     "noDocuments": "No course materials uploaded yet. Go to Internal Knowledge and upload lecture notes or textbooks first.",
-    "deleteSummary": "Delete summary"
+    "deleteSummary": "Delete summary",
+    "readySummaries": "Ready Summaries",
+    "summarySuggestions": "Summary Suggestions"
   },
   "flashcards": {
     "title": "Flashcards",
