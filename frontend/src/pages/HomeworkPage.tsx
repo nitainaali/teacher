@@ -1,24 +1,24 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { HomeworkChat } from "../components/HomeworkChat";
+import type { HomeworkFeedback } from "../types";
 import { getHomeworkHistory, deleteHomeworkSubmission } from "../api/homework";
 import type { HomeworkSubmission } from "../api/homework";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
-const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB warning threshold
 
 export function HomeworkPage() {
   const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
   const [knowledgeMode, setKnowledgeMode] = useState<"general" | "course_only">("general");
-  const [mode, setMode] = useState<"check" | "help">("check");
-  const [revelationLevel, setRevelationLevel] = useState<1 | 2 | 3>(1);
   const [files, setFiles] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [rawResponse, setRawResponse] = useState("");
+  const [feedback, setFeedback] = useState<HomeworkFeedback | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -27,97 +27,26 @@ export function HomeworkPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HomeworkSubmission | null>(null);
 
-  const pendingKey = courseId ? `hw_pending_${courseId}` : null;
-
-  const fetchHistory = useCallback(async (): Promise<HomeworkSubmission[]> => {
-    if (!courseId) return [];
+  const fetchHistory = () => {
+    if (!courseId) return;
     setLoadingHistory(true);
-    try {
-      const items = await getHomeworkHistory(courseId);
-      setHistoryItems(items);
-      return items;
-    } catch {
-      return [];
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [courseId]);
+    getHomeworkHistory(courseId)
+      .then(setHistoryItems)
+      .catch(() => {})
+      .finally(() => setLoadingHistory(false));
+  };
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
-
-  // ── localStorage persistence — restore in-progress state on mount ──────────
-  useEffect(() => {
-    if (!pendingKey || !courseId) return;
-    const ts = localStorage.getItem(pendingKey);
-    if (!ts) return;
-    const age = Date.now() - parseInt(ts);
-    if (age > 5 * 60 * 1000) {
-      localStorage.removeItem(pendingKey);
-      return;
-    }
-
-    // Previous session was in-progress — show spinner and poll for result
-    setChecking(true);
-    const startTs = parseInt(ts);
-
-    const interval = setInterval(async () => {
-      const items = await getHomeworkHistory(courseId);
-      setHistoryItems(items);
-      const found = items.find(
-        (i) => new Date(i.created_at).getTime() > startTs
-      );
-      if (found) {
-        clearInterval(interval);
-        clearTimeout(timeout);
-        setSelectedHistory(found);
-        setChecking(false);
-        localStorage.removeItem(pendingKey);
-      }
-    }, 2000);
-
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      setChecking(false);
-      localStorage.removeItem(pendingKey);
-    }, 5 * 60 * 1000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
   }, [courseId]);
 
-  const addFiles = (incoming: File[] | FileList | null) => {
+  const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
-    const arr = Array.from(incoming);
-    // Warn about oversized files
-    const oversized = arr.find((f) => f.size > MAX_FILE_BYTES);
-    if (oversized) {
-      setCheckError(t("common.fileTooLarge"));
-      return;
-    }
     setFiles((prev) => {
       const names = new Set(prev.map((f) => f.name));
-      return [...prev, ...arr.filter((f) => !names.has(f.name))];
+      const newOnes = Array.from(incoming).filter((f) => !names.has(f.name));
+      return [...prev, ...newOnes];
     });
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const imageItems = Array.from(e.clipboardData.items).filter((item) =>
-      item.type.startsWith("image/")
-    );
-    if (!imageItems.length) return;
-    e.preventDefault();
-    const pastedFiles = imageItems
-      .map((item) => {
-        const blob = item.getAsFile();
-        if (!blob) return null;
-        return new File([blob], `pasted-${Date.now()}.png`, { type: blob.type });
-      })
-      .filter(Boolean) as File[];
-    addFiles(pastedFiles);
   };
 
   const removeFile = (name: string) =>
@@ -133,19 +62,16 @@ export function HomeworkPage() {
     e.preventDefault();
     if (files.length === 0) return;
     setChecking(true);
+    setRawResponse("");
+    setFeedback(null);
     setCheckError(null);
     setSelectedHistory(null);
-
-    // Set localStorage flag so state persists across navigation/refresh
-    if (pendingKey) localStorage.setItem(pendingKey, Date.now().toString());
 
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
     if (courseId) form.append("course_id", courseId);
     form.append("knowledge_mode", knowledgeMode);
     form.append("language", i18n.language);
-    form.append("mode", mode);
-    form.append("revelation_level", String(revelationLevel));
     if (description.trim()) form.append("user_description", description.trim());
 
     try {
@@ -159,12 +85,12 @@ export function HomeworkPage() {
       }
       if (!response.body) return;
 
-      // Stream until done (display comes from DB, not stream)
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let full = "";
       let buffer = "";
 
-      outer: while (true) {
+      while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -173,28 +99,34 @@ export function HomeworkPage() {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const chunk = line.slice(6);
-            if (chunk === "[DONE]") break outer;
+            if (chunk === "[DONE]") break;
             if (chunk.startsWith("[ERROR:")) {
               throw new Error(chunk.slice(7, -1));
+            }
+            if (chunk) {
+              full += chunk;
+              setRawResponse(full);
             }
           }
         }
       }
-
-      // Wait for backend background task to save, then load from DB
-      await new Promise((res) => setTimeout(res, 1500));
-      const items = await fetchHistory();
-      if (items.length > 0) setSelectedHistory(items[0]);
+      const match = full.match(/{[\s\S]*}/);
+      if (match) {
+        try { setFeedback(JSON.parse(match[0])); } catch { /* leave as raw */ }
+      }
+      // Refresh history after successful submission
+      setTimeout(() => fetchHistory(), 1500);
     } catch (err) {
       setCheckError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setChecking(false);
-      if (pendingKey) localStorage.removeItem(pendingKey);
     }
   };
 
   const loadHistoryItem = (sub: HomeworkSubmission) => {
     setSelectedHistory(sub);
+    setRawResponse("");
+    setFeedback(null);
     setCheckError(null);
   };
 
@@ -218,85 +150,35 @@ export function HomeworkPage() {
     );
   };
 
-  const revelationOptions: { level: 1 | 2 | 3; label: string }[] = [
-    { level: 1, label: t("homework.revelationHint") },
-    { level: 2, label: t("homework.revelationGuide") },
-    { level: 3, label: t("homework.revelationSolution") },
-  ];
-
   return (
-    <div className="flex gap-5 items-start" onPaste={handlePaste}>
+    <div className="flex gap-5 items-start">
       {/* ── Main content ─────────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 max-w-2xl">
         <h1 className="text-2xl font-bold mb-2">{t("homework.title")}</h1>
         <p className="text-gray-400 text-sm mb-6">{t("homework.subtitle")}</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* ── Mode selector ──────────────────────────────────────────────── */}
-          <div className="bg-gray-800 rounded-xl p-4 space-y-3">
-            <div className="flex gap-2">
-              {(["check", "help"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    mode === m
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                  }`}
-                >
-                  {t(`homework.mode${m === "check" ? "Check" : "Help"}`)}
-                </button>
-              ))}
-            </div>
-
-            {/* Revelation level — only visible in help mode */}
-            {mode === "help" && (
-              <div>
-                <p className="text-xs text-gray-400 mb-2">{t("homework.revelationLabel")}</p>
-                <div className="flex gap-2">
-                  {revelationOptions.map(({ level, label }) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setRevelationLevel(level)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        revelationLevel === level
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Knowledge mode ─────────────────────────────────────────────── */}
           <div className="bg-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-3">{t("knowledgeMode.label")}</p>
             <div className="flex gap-2">
-              {(["general", "course_only"] as const).map((km) => (
+              {(["general", "course_only"] as const).map((mode) => (
                 <button
-                  key={km}
+                  key={mode}
                   type="button"
-                  onClick={() => setKnowledgeMode(km)}
+                  onClick={() => setKnowledgeMode(mode)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    knowledgeMode === km
+                    knowledgeMode === mode
                       ? "bg-blue-600 text-white"
                       : "bg-gray-700 text-gray-400 hover:bg-gray-600"
                   }`}
                 >
-                  {t(`knowledgeMode.${km === "general" ? "general" : "courseOnly"}`)}
+                  {t(`knowledgeMode.${mode === "general" ? "general" : "courseOnly"}`)}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ── Drop zone ──────────────────────────────────────────────────── */}
+          {/* Drop zone */}
           <div
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               dragOver
@@ -317,7 +199,6 @@ export function HomeworkPage() {
               onChange={(e) => addFiles(e.target.files)}
             />
             <p className="text-gray-500 text-sm">{t("homework.dragDrop")}</p>
-            <p className="text-gray-600 text-xs mt-1">{t("common.maxFileSize")}</p>
           </div>
 
           {/* Selected files list */}
@@ -400,21 +281,97 @@ export function HomeworkPage() {
             )}
             <MarkdownContent content={selectedHistory.analysis_result} />
           </div>
-        ) : checking ? (
-          <div className="mt-8 bg-gray-800 rounded-xl p-4 flex items-center gap-3">
-            <span className="animate-spin w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full inline-block shrink-0" />
-            <span className="text-sm text-gray-400">{t("homework.checking")}</span>
+        ) : feedback ? (
+          <div className="mt-8 space-y-4">
+            <h2 className="text-lg font-semibold">{t("homework.results.title")}</h2>
+
+            <div className="bg-gray-800 rounded-xl p-4 flex items-center gap-4">
+              <span
+                className={`text-2xl font-bold ${
+                  feedback.overall_correct ? "text-green-400" : "text-yellow-400"
+                }`}
+              >
+                {feedback.score_estimate}
+              </span>
+              <span
+                className={`text-sm ${
+                  feedback.overall_correct ? "text-green-400" : "text-yellow-400"
+                }`}
+              >
+                {feedback.overall_correct
+                  ? t("homework.results.correct")
+                  : t("homework.results.incorrect")}
+              </span>
+            </div>
+
+            {feedback.errors.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-red-400 mb-3">
+                  {t("homework.results.errors")}
+                </h3>
+                <div className="space-y-3">
+                  {feedback.errors.map((err, i) => (
+                    <div key={i} className="border-l-2 border-red-500 pl-3">
+                      <p className="text-sm font-medium">
+                        {t("homework.results.step")}: {err.step}
+                      </p>
+                      <p className="text-sm text-gray-400">{err.description}</p>
+                      <p className="text-sm text-green-400">
+                        {t("homework.results.correction")}: {err.correction}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {feedback.strengths.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-green-400 mb-2">
+                  {t("homework.results.strengths")}
+                </h3>
+                <ul className="space-y-1">
+                  {feedback.strengths.map((s, i) => (
+                    <li key={i} className="text-sm text-gray-300">
+                      • {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {feedback.suggestions.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-blue-400 mb-2">
+                  {t("homework.results.suggestions")}
+                </h3>
+                <ul className="space-y-1">
+                  {feedback.suggestions.map((s, i) => (
+                    <li key={i} className="text-sm text-gray-300">
+                      • {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : rawResponse ? (
+          <div className="mt-8 bg-gray-800 rounded-xl p-4">
+            <h2 className="text-lg font-semibold mb-3">{t("homework.results.title")}</h2>
+            <MarkdownContent content={rawResponse} />
+            {checking && (
+              <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle mt-1" />
+            )}
           </div>
         ) : null}
 
         {/* Embedded follow-up chat after feedback */}
-        {selectedHistory && !checking && (
+        {(rawResponse || selectedHistory) && !checking && (
           <HomeworkChat
-            homeworkContext={selectedHistory.analysis_result}
+            homeworkContext={rawResponse || selectedHistory?.analysis_result || ""}
             courseId={courseId}
             language={i18n.language}
-            submissionId={selectedHistory.id}
-            initialMessages={selectedHistory.chat_messages ?? undefined}
+            contextFiles={rawResponse ? files : undefined}
           />
         )}
       </div>
@@ -465,12 +422,6 @@ export function HomeworkPage() {
                     </span>
                   )}
                 </div>
-                {/* Show chat indicator if conversation was saved */}
-                {sub.chat_messages && sub.chat_messages.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    💬 {Math.floor(sub.chat_messages.length / 2)} {t("homework.chatRounds")}
-                  </p>
-                )}
               </div>
             ))}
           </div>

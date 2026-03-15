@@ -1,51 +1,43 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
-import { updateHomeworkChat } from "../api/homework";
-import type { ChatMessage } from "../api/homework";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
 
 interface HomeworkChatProps {
   homeworkContext: string;
   courseId?: string;
   language: string;
-  submissionId?: string;       // ID of the homework submission to save chat to
-  initialMessages?: ChatMessage[]; // Restored messages from history
+  contextFiles?: File[];
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export function HomeworkChat({
-  homeworkContext,
-  courseId,
-  language,
-  submissionId,
-  initialMessages,
-}: HomeworkChatProps) {
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]); // strip "data:image/jpeg;base64," prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+export function HomeworkChat({ homeworkContext, courseId, language, contextFiles }: HomeworkChatProps) {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // If initialMessages change (e.g. switching history items), reset messages
-  useEffect(() => {
-    setMessages(initialMessages ?? []);
-    setSessionId(null);
-  }, [submissionId]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  const saveMessages = async (msgs: ChatMessage[]) => {
-    if (!submissionId) return;
-    try {
-      await updateHomeworkChat(submissionId, msgs);
-    } catch {
-      // silently ignore — chat saving is best-effort
-    }
-  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -57,16 +49,20 @@ export function HomeworkChat({
       ? `${t("homework.chatContextPrefix")}:\n---\n${homeworkContext}\n---\n\n${text}`
       : text;
 
-    const newUserMsg: ChatMessage = { role: "user", content: text };
-    const updatedWithUser = [...messages, newUserMsg];
-    setMessages(updatedWithUser);
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
     setInput("");
     setStreaming(true);
 
-    const assistantPlaceholder: ChatMessage = { role: "assistant", content: "" };
-    setMessages((prev) => [...prev, assistantPlaceholder]);
+    const assistantPlaceholder = "";
+    setMessages((prev) => [...prev, { role: "assistant", content: assistantPlaceholder }]);
 
     try {
+      // On the first message, include original images so Claude can reference them directly
+      let images: string[] | undefined;
+      if (isFirst && contextFiles && contextFiles.length > 0) {
+        images = await Promise.all(contextFiles.map(fileToBase64));
+      }
+
       const response = await fetch(`${API_BASE}/api/chat/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,6 +73,7 @@ export function HomeworkChat({
           knowledge_mode: "general",
           language,
           source: "homework_chat",
+          images,
         }),
       });
 
@@ -134,19 +131,11 @@ export function HomeworkChat({
       }
 
       if (newSessionId) setSessionId(newSessionId);
-
-      // Save the full conversation to DB after each exchange
-      const finalMessages: ChatMessage[] = [
-        ...updatedWithUser,
-        { role: "assistant", content: accumulated },
-      ];
-      await saveMessages(finalMessages);
-      setMessages(finalMessages);
     } catch {
-      const errorMsg: ChatMessage = { role: "assistant", content: t("common.error") };
-      const withError = [...updatedWithUser, errorMsg];
-      setMessages(withError);
-      await saveMessages(withError);
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: t("common.error") },
+      ]);
     } finally {
       setStreaming(false);
     }
@@ -195,12 +184,7 @@ export function HomeworkChat({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
           placeholder={t("homework.chatPlaceholder")}
           disabled={streaming}
           className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
