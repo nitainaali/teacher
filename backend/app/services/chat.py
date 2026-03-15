@@ -6,6 +6,17 @@ from app.models.models import ChatSession, ChatMessage
 from app.services import claude, rag, student_intelligence
 
 
+def _detect_media_type(b64: str) -> str:
+    """Detect image media type from base64 header bytes."""
+    if b64.startswith("/9j/"):
+        return "image/jpeg"
+    elif b64.startswith("iVBOR"):
+        return "image/png"
+    elif b64.startswith("JVBERi"):
+        return "application/pdf"
+    return "image/jpeg"  # fallback
+
+
 async def get_or_create_session(
     db: AsyncSession,
     session_id: Optional[str],
@@ -32,10 +43,11 @@ async def send_message_stream(
     knowledge_mode: str,
     language: str = "en",
     source: Optional[str] = None,
+    images: Optional[list[str]] = None,
 ) -> AsyncGenerator[str, None]:
     session = await get_or_create_session(db, session_id, course_id, knowledge_mode)
 
-    # Persist user message
+    # Persist user message (text only — images are not stored in DB)
     user_msg = ChatMessage(session_id=session.id, role="user", content=message)
     db.add(user_msg)
     await db.flush()
@@ -47,7 +59,29 @@ async def send_message_stream(
         .order_by(ChatMessage.created_at)
     )
     all_messages = result.scalars().all()
-    messages_payload = [{"role": m.role, "content": m.content} for m in all_messages]
+
+    # Build messages payload.
+    # If images are provided, inject them into the last (current) user turn as multimodal content.
+    # This lets Claude see the homework images on the first follow-up turn.
+    # Subsequent turns rely on Claude's previous textual response containing the image analysis.
+    messages_payload = []
+    for i, m in enumerate(all_messages):
+        is_last_user = (i == len(all_messages) - 1) and m.role == "user"
+        if is_last_user and images:
+            content: list = []
+            for img_b64 in images:
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": _detect_media_type(img_b64),
+                        "data": img_b64,
+                    },
+                })
+            content.append({"type": "text", "text": m.content})
+            messages_payload.append({"role": "user", "content": content})
+        else:
+            messages_payload.append({"role": m.role, "content": m.content})
 
     extra_system = None
     if knowledge_mode == "course_only" and course_id:

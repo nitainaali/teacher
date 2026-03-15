@@ -272,6 +272,7 @@ class ChatMessageRequest(BaseModel):
     knowledge_mode: str = "general"
     language: str = "en"
     source: Optional[str] = None  # "homework_chat" → uses separate event_type
+    images: Optional[List[str]] = None  # base64-encoded images (homework chat first message)
 
 
 class TopicSummaryRequest(BaseModel):

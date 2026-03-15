@@ -371,6 +371,7 @@ export function HomeworkPage() {
             homeworkContext={rawResponse || selectedHistory?.analysis_result || ""}
             courseId={courseId}
             language={i18n.language}
+            contextFiles={rawResponse ? files : undefined}
           />
         )}
       </div>

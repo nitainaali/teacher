@@ -11,11 +11,23 @@ interface HomeworkChatProps {
   homeworkContext: string;
   courseId?: string;
   language: string;
+  contextFiles?: File[];
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkChatProps) {
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]); // strip "data:image/jpeg;base64," prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+export function HomeworkChat({ homeworkContext, courseId, language, contextFiles }: HomeworkChatProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -45,6 +57,12 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
     setMessages((prev) => [...prev, { role: "assistant", content: assistantPlaceholder }]);
 
     try {
+      // On the first message, include original images so Claude can reference them directly
+      let images: string[] | undefined;
+      if (isFirst && contextFiles && contextFiles.length > 0) {
+        images = await Promise.all(contextFiles.map(fileToBase64));
+      }
+
       const response = await fetch(`${API_BASE}/api/chat/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,6 +73,7 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
           knowledge_mode: "general",
           language,
           source: "homework_chat",
+          images,
         }),
       });
 

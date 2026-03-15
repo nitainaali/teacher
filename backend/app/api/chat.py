@@ -24,6 +24,7 @@ async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_
                 knowledge_mode=data.knowledge_mode,
                 language=data.language,
                 source=data.source,
+                images=data.images,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
