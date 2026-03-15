@@ -115,6 +115,11 @@ class FlashcardDeckRename(BaseModel):
     name: str
 
 
+class FlashcardUpdate(BaseModel):
+    front: Optional[str] = None
+    back: Optional[str] = None
+
+
 # ── Quizzes ───────────────────────────────────────────────────────────────────
 
 class QuizGenerateRequest(BaseModel):
