@@ -345,7 +345,8 @@
     "restoreAll": "Restore all",
     "examTopics": "Exam Topics",
     "examTopicsHint": "Topics that appeared most frequently in your past exams",
-    "examCount": "{{count}} exam(s)"
+    "examCount": "{{count}} exam(s)",
+    "examTopicsInsufficient": "At least 3 past exams are required to analyze exam topics"
   },
   "progress": {
     "title": "Progress",
@@ -369,7 +370,8 @@
     "whyStudyThis": "Why study this?",
     "loadingExplanation": "Loading explanation...",
     "knowledgeLevel": "Knowledge level",
-    "examImportance": "Exam importance"
+    "examImportance": "Exam importance",
+    "noRecs": "No study recommendations at this time"
   },
   "settings": {
     "title": "Settings",

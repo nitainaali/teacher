@@ -345,7 +345,8 @@
     "restoreAll": "שחזר הכל",
     "examTopics": "נושאים ממבחנים",
     "examTopicsHint": "נושאים שהופיעו הכי הרבה פעמים במבחניך הקודמים",
-    "examCount": "{{count}} מבחן"
+    "examCount": "{{count}} מבחן",
+    "examTopicsInsufficient": "נדרשים לפחות 3 מבחני עבר לניתוח נושאים ממבחן"
   },
   "progress": {
     "title": "התקדמות",
@@ -369,7 +370,8 @@
     "whyStudyThis": "למה ללמוד זאת?",
     "loadingExplanation": "טוען הסבר...",
     "knowledgeLevel": "רמת ידע",
-    "examImportance": "חשיבות במבחן"
+    "examImportance": "חשיבות במבחן",
+    "noRecs": "אין המלצות לימודיות כרגע"
   },
   "settings": {
     "title": "הגדרות",
