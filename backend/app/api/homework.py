@@ -81,7 +81,11 @@ async def check_homework(
         collected: list[str] = []
         success = False
         try:
-            async for token in check_homework_stream(images_b64, course_id, knowledge_mode, db, language=language, user_description=user_description, mode=mode, revelation_level=revelation_level):
+            async for token in check_homework_stream(
+                images_b64, course_id, knowledge_mode, db,
+                language=language, user_description=user_description,
+                mode=mode, revelation_level=revelation_level,
+            ):
                 collected.append(token)
                 yield f"data: {token.replace(chr(10), chr(92) + 'n')}\n\n"
             success = True
