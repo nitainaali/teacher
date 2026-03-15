@@ -327,6 +327,7 @@ class HomeworkSubmissionOut(BaseModel):
     filenames: Optional[List[Any]]
     analysis_result: str
     score_text: Optional[str]
+    chat_messages: Optional[List[Any]] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

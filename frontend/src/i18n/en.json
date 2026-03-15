@@ -21,7 +21,9 @@
     "start": "Start",
     "generate": "Generate",
     "analyze": "Analyze",
-    "send": "Send"
+    "send": "Send",
+    "maxFileSize": "Max file size: 40 MB",
+    "fileTooLarge": "File is too large (max 40 MB)"
   },
   "knowledgeMode": {
     "label": "Knowledge source",
@@ -262,10 +264,17 @@
     "noFiles": "No files uploaded.",
     "description": "Description (optional)",
     "descriptionPlaceholder": "Describe the assignment or what you need help with...",
+    "modeCheck": "Check Answer",
+    "modeHelp": "Help Solving",
+    "revelationLabel": "How much to reveal?",
+    "revelationHint": "Small hint",
+    "revelationGuide": "Detailed guidance",
+    "revelationSolution": "Full solution",
     "chatTitle": "Follow-up Chat",
     "chatPlaceholder": "Ask a follow-up question about the feedback...",
     "chatContextPrefix": "Here is the feedback I received on my homework",
-    "chatHint": "Ask a follow-up question about the feedback above"
+    "chatHint": "Ask a follow-up question about the feedback above",
+    "chatRounds": "exchanges"
   },
   "examAnalysis": {
     "title": "Exam Analysis",

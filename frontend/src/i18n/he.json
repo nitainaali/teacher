@@ -21,7 +21,9 @@
     "start": "התחל",
     "generate": "צור",
     "analyze": "נתח",
-    "send": "שלח"
+    "send": "שלח",
+    "maxFileSize": "גודל קובץ מקסימלי: 40 MB",
+    "fileTooLarge": "הקובץ גדול מדי (מקסימום 40 MB)"
   },
   "knowledgeMode": {
     "label": "מקור ידע",
@@ -262,10 +264,17 @@
     "noFiles": "לא הועלו קבצים.",
     "description": "תיאור (אופציונלי)",
     "descriptionPlaceholder": "תאר את המטלה או במה אתה צריך עזרה...",
+    "modeCheck": "בדיקת תשובה",
+    "modeHelp": "עזרה בפתרון",
+    "revelationLabel": "כמה לגלות?",
+    "revelationHint": "רמז קטן",
+    "revelationGuide": "הדרכה מפורטת",
+    "revelationSolution": "פתרון מלא",
     "chatTitle": "שאלות המשך",
     "chatPlaceholder": "שאל שאלת המשך על המשוב...",
     "chatContextPrefix": "הנה המשוב שקיבלתי על המטלה שלי",
-    "chatHint": "שאל שאלת המשך על המשוב שלמעלה"
+    "chatHint": "שאל שאלת המשך על המשוב שלמעלה",
+    "chatRounds": "החלפות"
   },
   "examAnalysis": {
     "title": "ניתוח מבחן",

@@ -245,6 +245,7 @@ class HomeworkSubmission(Base):
     filenames: Mapped[list | None] = mapped_column(JSONB)  # list of original filenames
     analysis_result: Mapped[str] = mapped_column(Text, nullable=False)
     score_text: Mapped[str | None] = mapped_column(String(50))
+    chat_messages: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course | None"] = relationship("Course", back_populates="homework_submissions")
