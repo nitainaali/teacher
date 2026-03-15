@@ -4,10 +4,11 @@ Study recommendations engine.
 Algorithm:
   topic_importance = count of 'exam_topic' events / max exam_topic count (0-1)
   student_strength = positive_events / (positive + negative events) per topic (0-1)
+                     defaults to 0.5 when no performance data exists
   urgency = topic_importance * (1 - student_strength)
 
-Only topics with >= MIN_INTERACTIONS performance events are included —
-topics without sufficient data are excluded from recommendations.
+Only topics that appear in BOTH exam events AND document_topic events are included.
+This excludes homework-question-like strings that may have been tagged during quizzes.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,7 +17,6 @@ from app.models.models import LearningEvent
 
 POSITIVE_TYPES = {"quiz_correct", "flashcard_easy"}
 NEGATIVE_TYPES = {"quiz_wrong", "homework_error", "flashcard_hard"}
-MIN_INTERACTIONS = 3  # match the threshold used in diagnosis.py
 
 
 async def get_recommendations(
@@ -32,42 +32,48 @@ async def get_recommendations(
     if not events:
         return []
 
-    # 1. Topic importance from exam_topic events
-    exam_topic_events = [e for e in events if e.event_type == "exam_topic" and e.topic]
+    # 1. Valid course topics from document_topic events (authoritative topic list)
+    valid_topics: set[str] = {
+        e.topic for e in events
+        if e.event_type == "document_topic" and e.topic
+    }
+
+    # 2. Topic importance from exam_topic events (only for valid course topics)
+    exam_topic_events = [
+        e for e in events
+        if e.event_type == "exam_topic" and e.topic and e.topic in valid_topics
+    ]
     topic_exam_count: dict[str, int] = {}
     for e in exam_topic_events:
         topic_exam_count[e.topic] = topic_exam_count.get(e.topic, 0) + 1
 
-    max_exam_count = max(topic_exam_count.values()) if topic_exam_count else 1
+    if not topic_exam_count:
+        return []
+
+    max_exam_count = max(topic_exam_count.values())
     topic_importance: dict[str, float] = {
         t: c / max_exam_count for t, c in topic_exam_count.items()
     }
 
-    # 2. Student strength per topic from performance events
+    # 3. Student strength per topic from performance events
     topic_positive: dict[str, int] = {}
     topic_negative: dict[str, int] = {}
-    topic_perf_count: dict[str, int] = {}
 
     for e in events:
         if not e.topic:
             continue
         if e.event_type in POSITIVE_TYPES:
             topic_positive[e.topic] = topic_positive.get(e.topic, 0) + 1
-            topic_perf_count[e.topic] = topic_perf_count.get(e.topic, 0) + 1
         elif e.event_type in NEGATIVE_TYPES:
             topic_negative[e.topic] = topic_negative.get(e.topic, 0) + 1
-            topic_perf_count[e.topic] = topic_perf_count.get(e.topic, 0) + 1
 
-    # 3. Compute urgency — only for exam topics with sufficient performance data
+    # 4. Compute urgency for each exam topic in the valid set
     recommendations = []
     for topic, importance in topic_importance.items():
-        perf_count = topic_perf_count.get(topic, 0)
-        if perf_count < MIN_INTERACTIONS:
-            continue  # Not enough data to assess this topic
-
         pos = topic_positive.get(topic, 0)
         neg = topic_negative.get(topic, 0)
         total = pos + neg
+        # Default to 0.5 strength when no performance data (unknown = assume average)
         strength = (pos / total) if total > 0 else 0.5
         urgency = importance * (1.0 - strength)
 

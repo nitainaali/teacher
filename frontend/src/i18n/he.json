@@ -342,7 +342,10 @@
     "hideTopic": "הסתר נושא",
     "showHidden": "הצג מוסתרים ({{count}})",
     "hideHidden": "הסתר מוסתרים",
-    "restoreAll": "שחזר הכל"
+    "restoreAll": "שחזר הכל",
+    "examTopics": "נושאים ממבחנים",
+    "examTopicsHint": "נושאים שהופיעו הכי הרבה פעמים במבחניך הקודמים",
+    "examCount": "{{count}} מבחן"
   },
   "progress": {
     "title": "התקדמות",
