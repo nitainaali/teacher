@@ -7,7 +7,7 @@ import anthropic as _anthropic
 
 from app.core.database import get_db
 from app.models.models import TopicSummary
-from app.schemas.schemas import TopicSummaryRequest, TopicSummaryOut
+from app.schemas.schemas import TopicSummaryRequest, TopicSummaryOut, RecommendationExplanationRequest
 from app.services import claude, rag
 from app.services.recommendations import get_recommendations
 
@@ -130,3 +130,44 @@ async def recommendations(
     """Get personalized study recommendations for a course."""
     recs = await get_recommendations(db, course_id, limit)
     return recs
+
+
+@router.post("/recommendation-explanation")
+async def recommendation_explanation(
+    data: RecommendationExplanationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream a Claude-generated explanation of why a topic is recommended and what to strengthen."""
+
+    async def event_generator():
+        strength_pct = round(data.strength * 100)
+        importance_pct = round(data.importance * 100)
+
+        prompt = (
+            f"The student is reviewing their study plan for the topic **{data.topic}**.\n\n"
+            f"Learning data:\n"
+            f"- Knowledge level: {strength_pct}% (based on quiz and flashcard performance)\n"
+            f"- Exam importance: {importance_pct}% (how often this topic appeared in past exams)\n"
+            f"- Priority level: {data.urgency_level}\n\n"
+            "Please provide a concise explanation (2–3 short paragraphs) covering:\n"
+            "1. Why this topic is recommended for review right now\n"
+            "2. What specific aspects or skills the student should focus on strengthening\n"
+            "3. A brief practical suggestion for how to approach studying it\n\n"
+            "Be direct and actionable. Use LaTeX for any math ($...$)."
+        )
+
+        try:
+            async for chunk in claude.stream(
+                db=db,
+                messages=[{"role": "user", "content": prompt}],
+                course_id=data.course_id,
+                max_tokens=500,
+                language=data.language,
+            ):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: [ERROR: {str(e)[:200]}]\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

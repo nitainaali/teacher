@@ -52,7 +52,7 @@
     "chat": "שאל שאלה",
     "homework": "עזרה במטלות",
     "exam": "ניתוח מבחן",
-    "diagnosis": "אבחון מצב"
+    "diagnosis": "אבחון מצב לימודי"
   },
   "courses": {
     "title": "קורסים",
@@ -324,28 +324,25 @@
     "unknownExam": "מבחן ללא שם"
   },
   "diagnosis": {
-    "title": "אבחון מצב",
+    "title": "אבחון מצב לימודי",
     "subtitle": "פרופיל הלמידה שלך בקורס זה",
-    "stats": "סיכום פעילות",
-    "topicBreakdown": "רמת ידע לפי נושאים",
+    "stats": "סטטיסטיקות קורס",
+    "topicBreakdown": "נושאים",
     "noData": "אין נתוני למידה עדיין לקורס זה. התחל ללמוד כדי לראות את ההתקדמות שלך!",
+    "noDataTopic": "אין מספיק נתונים עדיין להערכת הידע",
     "strength": "רמה",
     "documents": "מסמכים",
-    "flashcards": "כרטיסיות",
+    "flashcards": "כרטיסיות שנלמדו",
     "dueFlashcards": "לסקירה",
-    "quizzes": "בחנים שנלקחו",
+    "quizzes": "בחנים שהושלמו",
     "avgScore": "ציון ממוצע",
     "eventCount": "אינטראקציות",
-    "flashcardsStudied": "כרטיסיות שנלמדו",
-    "quizzesCompleted": "בחנים שבוצעו",
-    "homeworkSubmitted": "מטלות שהוגשו",
-    "examsSubmitted": "מבחנים שהוגשו",
-    "estimatedLabel": "(מוערך)",
-    "interactions": "אינטראקציות",
-    "insufficientData": "אין מספיק נתונים עדיין — נדרשות לפחות 3 אינטראקציות בנושא זה",
-    "examTopicsTitle": "נושאי מבחן לפי משקל",
-    "examTopicsInsufficient": "אין מספיק מבחני עבר — נדרשים לפחות 3 כדי להציג דירוג נושאים",
-    "examTopicsAppearances": "ב-{{n}} מבחנים"
+    "homeworkSubmissions": "מטלות שהוגשו",
+    "examsAnalyzed": "מבחנים שנותחו",
+    "hideTopic": "הסתר נושא",
+    "showHidden": "הצג מוסתרים ({{count}})",
+    "hideHidden": "הסתר מוסתרים",
+    "restoreAll": "שחזר הכל"
   },
   "progress": {
     "title": "התקדמות",
@@ -365,7 +362,11 @@
       "high": "עדיפות גבוהה",
       "medium": "עדיפות בינונית",
       "low": "עדיפות נמוכה"
-    }
+    },
+    "whyStudyThis": "למה ללמוד זאת?",
+    "loadingExplanation": "טוען הסבר...",
+    "knowledgeLevel": "רמת ידע",
+    "examImportance": "חשיבות במבחן"
   },
   "settings": {
     "title": "הגדרות",

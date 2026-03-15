@@ -233,8 +233,18 @@ class ExamTopicWeight(BaseModel):
 class DiagnosisData(BaseModel):
     stats: DiagnosisStats
     topics: List[TopicKnowledge]
-    exam_topics: Optional[List[ExamTopicWeight]]  # None if < 3 distinct exam docs
+    exam_topics: Optional[List[ExamTopicWeight]]
     exam_doc_count: int
+
+
+class RecommendationExplanationRequest(BaseModel):
+    course_id: str
+    topic: str
+    strength: float
+    importance: float
+    urgency_level: str
+    language: str = "en"
+
 
 
 # ── Student Profile ───────────────────────────────────────────────────────────

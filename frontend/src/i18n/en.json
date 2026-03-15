@@ -52,7 +52,7 @@
     "chat": "Ask a Question",
     "homework": "Homework Help",
     "exam": "Exam Analysis",
-    "diagnosis": "Status Diagnosis"
+    "diagnosis": "Learning Diagnosis"
   },
   "courses": {
     "title": "Courses",
@@ -324,28 +324,25 @@
     "unknownExam": "Unnamed exam"
   },
   "diagnosis": {
-    "title": "Status Diagnosis",
+    "title": "Learning Status Diagnosis",
     "subtitle": "Your learning profile for this course",
-    "stats": "Activity Summary",
-    "topicBreakdown": "Knowledge by Topic",
+    "stats": "Course Statistics",
+    "topicBreakdown": "Topics",
     "noData": "No learning data yet for this course. Start studying to see your progress!",
+    "noDataTopic": "Insufficient data yet to assess knowledge",
     "strength": "Strength",
     "documents": "Documents",
-    "flashcards": "Flashcards",
+    "flashcards": "Flashcards studied",
     "dueFlashcards": "Due for review",
-    "quizzes": "Quizzes taken",
+    "quizzes": "Quizzes completed",
     "avgScore": "Average score",
     "eventCount": "Interactions",
-    "flashcardsStudied": "Flashcards studied",
-    "quizzesCompleted": "Quizzes completed",
-    "homeworkSubmitted": "Homework submitted",
-    "examsSubmitted": "Exams submitted",
-    "estimatedLabel": "(estimated)",
-    "interactions": "interactions",
-    "insufficientData": "Not enough data yet — need at least 3 interactions on this topic",
-    "examTopicsTitle": "Past Exam Topics by Weight",
-    "examTopicsInsufficient": "Not enough past exams — need at least 3 to show topic rankings",
-    "examTopicsAppearances": "in {{n}} exam(s)"
+    "homeworkSubmissions": "Homework submitted",
+    "examsAnalyzed": "Exams analyzed",
+    "hideTopic": "Hide topic",
+    "showHidden": "Show hidden ({{count}})",
+    "hideHidden": "Hide hidden",
+    "restoreAll": "Restore all"
   },
   "progress": {
     "title": "Progress",
@@ -365,7 +362,11 @@
       "high": "High priority",
       "medium": "Medium priority",
       "low": "Low priority"
-    }
+    },
+    "whyStudyThis": "Why study this?",
+    "loadingExplanation": "Loading explanation...",
+    "knowledgeLevel": "Knowledge level",
+    "examImportance": "Exam importance"
   },
   "settings": {
     "title": "Settings",

@@ -124,6 +124,33 @@ export interface Recommendation {
   importance: number;
 }
 
+export interface DiagnosisStats {
+  flashcards_studied: number;
+  quizzes_completed: number;
+  homework_submitted: number;
+  exams_submitted: number;
+}
+
+export interface TopicKnowledge {
+  topic: string;
+  knowledge_level: number | null;
+  has_sufficient_data: boolean;
+  total_interactions: number;
+}
+
+export interface ExamTopicWeight {
+  topic: string;
+  exam_count: number;
+  weight: number;
+}
+
+export interface DiagnosisData {
+  stats: DiagnosisStats;
+  topics: TopicKnowledge[];
+  exam_topics: ExamTopicWeight[] | null;
+  exam_doc_count: number;
+}
+
 export interface TopicSummary {
   id: string;
   course_id: string;
