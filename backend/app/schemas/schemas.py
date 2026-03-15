@@ -201,6 +201,44 @@ class TopicPerformance(BaseModel):
     event_count: int
 
 
+# ── Diagnosis ─────────────────────────────────────────────────────────────────
+
+class DiagnosisStats(BaseModel):
+    flashcards_studied: int
+    quizzes_completed: int
+    homework_submitted: int
+    exams_submitted: int
+
+
+class TopicKnowledge(BaseModel):
+    topic: str
+    knowledge_level: Optional[float]  # 0.0–1.0, None if insufficient data
+    has_sufficient_data: bool
+    total_interactions: int
+
+
+class ExamTopicWeight(BaseModel):
+    topic: str
+    exam_count: int
+    weight: float  # 0.0–1.0 normalized
+
+
+class DiagnosisData(BaseModel):
+    stats: DiagnosisStats
+    topics: List[TopicKnowledge]
+    exam_topics: Optional[List[ExamTopicWeight]]
+    exam_doc_count: int
+
+
+class RecommendationExplanationRequest(BaseModel):
+    course_id: str
+    topic: str
+    strength: float
+    importance: float
+    urgency_level: str
+    language: str = "en"
+
+
 # ── Student Profile ───────────────────────────────────────────────────────────
 
 class StudentProfileUpsert(BaseModel):

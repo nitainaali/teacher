@@ -2,37 +2,38 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import client from "../api/client";
-import type { ProgressStats } from "../types";
-
-interface TopicEntry {
-  topic: string;
-  avg_score: number;
-  event_count: number;
-}
-
-interface StatCard {
-  labelKey: string;
-  value: string | number;
-}
+import type { DiagnosisData } from "../types";
 
 export function DiagnosisPage() {
   const { t } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
-  const [stats, setStats] = useState<ProgressStats | null>(null);
-  const [topics, setTopics] = useState<TopicEntry[]>([]);
+  const [data, setData] = useState<DiagnosisData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
+
+  const hiddenKey = `hidden_topics_${courseId}`;
+  const [hiddenTopics, setHiddenTopics] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(hiddenKey) || "[]"); }
+    catch { return []; }
+  });
+
+  const hideTopicLocal = (topic: string) => {
+    const next = [...hiddenTopics, topic];
+    setHiddenTopics(next);
+    try { localStorage.setItem(hiddenKey, JSON.stringify(next)); } catch {}
+  };
+
+  const restoreAll = () => {
+    setHiddenTopics([]);
+    try { localStorage.removeItem(hiddenKey); } catch {}
+    setShowHidden(false);
+  };
 
   useEffect(() => {
     if (!courseId) return;
-    const params = { course_id: courseId };
-    Promise.all([
-      client.get<ProgressStats>("/api/progress", { params }),
-      client.get<TopicEntry[]>("/api/progress/topics", { params }),
-    ])
-      .then(([statsRes, topicsRes]) => {
-        setStats(statsRes.data);
-        setTopics(topicsRes.data);
-      })
+    client
+      .get<DiagnosisData>("/api/diagnosis/", { params: { course_id: courseId } })
+      .then((r) => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [courseId]);
@@ -45,7 +46,7 @@ export function DiagnosisPage() {
     );
   }
 
-  const hasData = stats !== null && (stats.total_documents > 0 || topics.length > 0);
+  const hasData = data !== null && (data.topics.length > 0 || data.stats.flashcards_studied > 0 || data.stats.quizzes_completed > 0);
 
   if (!hasData) {
     return (
@@ -58,20 +59,25 @@ export function DiagnosisPage() {
       </div>
     );
   }
-  const maxEvents = Math.max(...topics.map((tp) => tp.event_count), 1);
 
-  const statCards: StatCard[] = [
-    { labelKey: "diagnosis.documents", value: stats?.total_documents ?? 0 },
-    { labelKey: "diagnosis.flashcards", value: stats?.total_flashcards ?? 0 },
-    { labelKey: "diagnosis.dueFlashcards", value: stats?.due_flashcards ?? 0 },
-    { labelKey: "diagnosis.quizzes", value: stats?.total_quizzes ?? 0 },
-    {
-      labelKey: "diagnosis.avgScore",
-      value: stats?.average_quiz_score != null
-        ? Math.round(stats.average_quiz_score * 100) + "%"
-        : "—",
-    },
+  const stats = data!.stats;
+  const visibleTopics = showHidden
+    ? data!.topics
+    : data!.topics.filter((tp) => !hiddenTopics.includes(tp.topic));
+  const hiddenCount = hiddenTopics.filter((h) => data!.topics.some((tp) => tp.topic === h)).length;
+
+  const statCards = [
+    { labelKey: "diagnosis.flashcards", value: stats.flashcards_studied },
+    { labelKey: "diagnosis.quizzes", value: stats.quizzes_completed },
+    { labelKey: "diagnosis.homeworkSubmissions", value: stats.homework_submitted },
+    { labelKey: "diagnosis.examsAnalyzed", value: stats.exams_submitted },
   ];
+
+  const knowledgeBarColor = (level: number) => {
+    if (level >= 0.7) return "bg-green-500";
+    if (level >= 0.4) return "bg-yellow-500";
+    return "bg-red-500";
+  };
 
   return (
     <div className="space-y-6">
@@ -80,11 +86,12 @@ export function DiagnosisPage() {
         <p className="text-sm text-gray-400 mt-1">{t("diagnosis.subtitle")}</p>
       </div>
 
+      {/* Activity stats */}
       <div>
         <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
           {t("diagnosis.stats")}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {statCards.map((card) => (
             <div key={card.labelKey} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
               <p className="text-2xl font-bold text-white mb-1">{card.value}</p>
@@ -94,29 +101,76 @@ export function DiagnosisPage() {
         </div>
       </div>
 
-      {topics.length > 0 && (
+      {/* Per-topic knowledge */}
+      {visibleTopics.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
             {t("diagnosis.topicBreakdown")}
           </h3>
           <div className="space-y-2">
-            {topics.map((entry) => {
-              const barWidth = Math.round((entry.event_count / maxEvents) * 100);
+            {visibleTopics.map((entry) => {
+              const isHidden = hiddenTopics.includes(entry.topic);
+              if (isHidden && !showHidden) return null;
               return (
-                <div key={entry.topic} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-white font-medium truncate">{entry.topic}</span>
-                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-                      {entry.event_count} {t("diagnosis.eventCount").toLowerCase()}
-                    </span>
+                <div
+                  key={entry.topic}
+                  className={`bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-center gap-3 ${isHidden ? "opacity-40" : ""}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-white font-medium truncate">{entry.topic}</span>
+                      {entry.has_sufficient_data && entry.knowledge_level != null && (
+                        <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                          {Math.round(entry.knowledge_level * 100)}%
+                        </span>
+                      )}
+                    </div>
+                    {entry.has_sufficient_data && entry.knowledge_level != null ? (
+                      <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${knowledgeBarColor(entry.knowledge_level)}`}
+                          style={{ width: Math.round(entry.knowledge_level * 100) + "%" }}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">{t("diagnosis.noDataTopic")}</p>
+                    )}
                   </div>
-                  <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 rounded-full transition-all" style={{ width: barWidth + "%" }} />
-                  </div>
+                  {!isHidden && (
+                    <button
+                      onClick={() => hideTopicLocal(entry.topic)}
+                      title={t("diagnosis.hideTopic")}
+                      className="text-gray-600 hover:text-gray-400 transition-colors text-base flex-shrink-0 leading-none"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {/* Hidden topics controls */}
+          {hiddenCount > 0 && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={() => setShowHidden((v) => !v)}
+                className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                {showHidden
+                  ? t("diagnosis.hideHidden")
+                  : t("diagnosis.showHidden", { count: hiddenCount })}
+              </button>
+              {showHidden && (
+                <button
+                  onClick={restoreAll}
+                  className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                >
+                  {t("diagnosis.restoreAll")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

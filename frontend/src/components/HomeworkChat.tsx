@@ -92,6 +92,25 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
         }
       }
 
+      // Load clean content from DB — SSE-accumulated strings can have corrupted
+      // LaTeX/newlines due to TCP chunking. DB is the authoritative source.
+      const resolvedSessionId = newSessionId || sessionId;
+      if (resolvedSessionId) {
+        try {
+          const msgRes = await fetch(`${API_BASE}/api/chat/sessions/${resolvedSessionId}/messages`);
+          if (msgRes.ok) {
+            const msgs = (await msgRes.json()) as Array<{ role: string; content: string }>;
+            const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+            if (lastAssistant) {
+              setMessages((prev) => [
+                ...prev.slice(0, -1),
+                { role: "assistant", content: lastAssistant.content },
+              ]);
+            }
+          }
+        } catch {}
+      }
+
       if (newSessionId) setSessionId(newSessionId);
     } catch {
       setMessages((prev) => [

@@ -6,7 +6,8 @@ Algorithm:
   student_strength = positive_events / (positive + negative events) per topic (0-1)
   urgency = topic_importance * (1 - student_strength)
 
-Returns top N topics sorted by urgency descending.
+Only topics with >= MIN_INTERACTIONS performance events are included —
+topics without sufficient data are excluded from recommendations.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -15,6 +16,7 @@ from app.models.models import LearningEvent
 
 POSITIVE_TYPES = {"quiz_correct", "flashcard_easy"}
 NEGATIVE_TYPES = {"quiz_wrong", "homework_error", "flashcard_hard"}
+MIN_INTERACTIONS = 3  # match the threshold used in diagnosis.py
 
 
 async def get_recommendations(
@@ -41,29 +43,32 @@ async def get_recommendations(
         t: c / max_exam_count for t, c in topic_exam_count.items()
     }
 
-    # 2. Student strength per topic from interaction events
+    # 2. Student strength per topic from performance events
     topic_positive: dict[str, int] = {}
     topic_negative: dict[str, int] = {}
-    all_topics: set[str] = set(topic_importance.keys())
+    topic_perf_count: dict[str, int] = {}
 
     for e in events:
-        if not e.topic or e.event_type == "exam_topic":
+        if not e.topic:
             continue
-        all_topics.add(e.topic)
         if e.event_type in POSITIVE_TYPES:
             topic_positive[e.topic] = topic_positive.get(e.topic, 0) + 1
+            topic_perf_count[e.topic] = topic_perf_count.get(e.topic, 0) + 1
         elif e.event_type in NEGATIVE_TYPES:
             topic_negative[e.topic] = topic_negative.get(e.topic, 0) + 1
+            topic_perf_count[e.topic] = topic_perf_count.get(e.topic, 0) + 1
 
-    # 3. Compute urgency
+    # 3. Compute urgency — only for exam topics with sufficient performance data
     recommendations = []
-    for topic in all_topics:
+    for topic, importance in topic_importance.items():
+        perf_count = topic_perf_count.get(topic, 0)
+        if perf_count < MIN_INTERACTIONS:
+            continue  # Not enough data to assess this topic
+
         pos = topic_positive.get(topic, 0)
         neg = topic_negative.get(topic, 0)
         total = pos + neg
-        # Unknown history → neutral (0.5 strength)
         strength = (pos / total) if total > 0 else 0.5
-        importance = topic_importance.get(topic, 0.2)  # topics not in exams get low base importance
         urgency = importance * (1.0 - strength)
 
         if urgency < 0.05:

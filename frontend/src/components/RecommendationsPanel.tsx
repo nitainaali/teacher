@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getRecommendations } from "../api/learning";
+import { MarkdownContent } from "./MarkdownContent";
 import type { Recommendation } from "../types";
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 interface RecommendationsPanelProps {
   courseId: string;
+  language?: string;
   onTopicSelect?: (topic: string) => void;
 }
 
@@ -14,7 +18,7 @@ const urgencyConfig = {
   low: { color: "bg-blue-900/40 border-blue-700 text-blue-300", dot: "bg-blue-500" },
 };
 
-export function RecommendationsPanel({ courseId, onTopicSelect }: RecommendationsPanelProps) {
+export function RecommendationsPanel({ courseId, language = "en", onTopicSelect }: RecommendationsPanelProps) {
   const { t } = useTranslation();
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +27,12 @@ export function RecommendationsPanel({ courseId, onTopicSelect }: Recommendation
     try { return localStorage.getItem(storageKey) === "true"; }
     catch { return false; }
   });
+
+  // Explanation modal state
+  const [selectedRec, setSelectedRec] = useState<Recommendation | null>(null);
+  const [explanation, setExplanation] = useState("");
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -37,15 +47,72 @@ export function RecommendationsPanel({ courseId, onTopicSelect }: Recommendation
     try { localStorage.setItem(storageKey, String(next)); } catch {}
   };
 
-  if (loading) {
-    return null; // don't show anything while loading
-  }
+  const openExplanation = async (rec: Recommendation) => {
+    setSelectedRec(rec);
+    setExplanation("");
+    setExplanationLoading(true);
 
-  if (recs.length === 0) {
-    return null; // no recommendations — don't render
-  }
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
 
-  // Collapsed state: show compact button
+    try {
+      const response = await fetch(`${API_BASE}/api/learning/recommendation-explanation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: courseId,
+          topic: rec.topic,
+          strength: rec.strength,
+          importance: rec.importance,
+          urgency_level: rec.urgency_level,
+          language,
+        }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!response.ok || !response.body) throw new Error();
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const chunk = line.slice(6);
+            if (chunk === "[DONE]") break;
+            if (chunk.startsWith("[ERROR:")) continue;
+            if (chunk) {
+              accumulated += chunk;
+              setExplanation(accumulated);
+            }
+          }
+        }
+      }
+    } catch {
+      // aborted or network error — leave explanation as-is
+    } finally {
+      setExplanationLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    abortRef.current?.abort();
+    setSelectedRec(null);
+    setExplanation("");
+    setExplanationLoading(false);
+  };
+
+  if (loading) return null;
+  if (recs.length === 0) return null;
+
+  // Collapsed state
   if (!isOpen) {
     return (
       <button
@@ -58,41 +125,95 @@ export function RecommendationsPanel({ courseId, onTopicSelect }: Recommendation
     );
   }
 
-  // Expanded state: full panel
+  // Expanded state
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-300">{t("recommendations.title")}</h3>
-        <button
-          onClick={toggle}
-          className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
-        >
-          ✕
-        </button>
-      </div>
-      <div className="space-y-2">
-        {recs.map((rec) => {
-          const cfg = urgencyConfig[rec.urgency_level] ?? urgencyConfig.low;
-          return (
-            <div
-              key={rec.topic}
-              onClick={() => onTopicSelect?.(rec.topic)}
-              className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs ${cfg.color} ${
-                onTopicSelect ? "cursor-pointer hover:opacity-80 transition-opacity" : ""
-              }`}
-            >
-              <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-              <div className="min-w-0">
-                <p className="font-medium truncate">{rec.topic}</p>
-                <p className="opacity-70 mt-0.5 truncate">{rec.reason}</p>
+    <>
+      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-300">{t("recommendations.title")}</h3>
+          <button onClick={toggle} className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+            ✕
+          </button>
+        </div>
+        <div className="space-y-2">
+          {recs.map((rec) => {
+            const cfg = urgencyConfig[rec.urgency_level] ?? urgencyConfig.low;
+            return (
+              <div
+                key={rec.topic}
+                onClick={() => {
+                  onTopicSelect?.(rec.topic);
+                  openExplanation(rec);
+                }}
+                className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer hover:opacity-80 transition-opacity ${cfg.color}`}
+              >
+                <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{rec.topic}</p>
+                  <p className="opacity-70 mt-0.5 truncate">{rec.reason}</p>
+                </div>
+                <span className="shrink-0 opacity-60 ml-auto">
+                  {t(`recommendations.urgency.${rec.urgency_level}`)}
+                </span>
               </div>
-              <span className="shrink-0 opacity-60 ml-auto">
-                {t(`recommendations.urgency.${rec.urgency_level}`)}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Explanation modal */}
+      {selectedRec && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+        >
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${urgencyConfig[selectedRec.urgency_level]?.dot ?? "bg-blue-500"}`} />
+                <h3 className="text-sm font-semibold text-white truncate">{selectedRec.topic}</h3>
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  {t(`recommendations.urgency.${selectedRec.urgency_level}`)}
+                </span>
+              </div>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-300 transition-colors ml-3 flex-shrink-0">
+                ✕
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="p-5 overflow-y-auto flex-1">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                {t("recommendations.whyStudyThis")}
+              </p>
+              {explanationLoading && !explanation && (
+                <p className="text-sm text-gray-400 animate-pulse">{t("recommendations.loadingExplanation")}</p>
+              )}
+              {explanation && (
+                <div className="text-sm text-gray-200">
+                  <MarkdownContent content={explanation} />
+                  {explanationLoading && (
+                    <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
+                  )}
+                </div>
+              )}
+
+              {/* Stats summary */}
+              <div className="mt-4 flex gap-3">
+                <div className="flex-1 bg-gray-700/50 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-white">{Math.round(selectedRec.strength * 100)}%</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t("recommendations.knowledgeLevel")}</p>
+                </div>
+                <div className="flex-1 bg-gray-700/50 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-white">{Math.round(selectedRec.importance * 100)}%</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t("recommendations.examImportance")}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
