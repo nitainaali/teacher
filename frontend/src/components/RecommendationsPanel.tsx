@@ -110,7 +110,6 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
   };
 
   if (loading) return null;
-  if (recs.length === 0) return null;
 
   // Collapsed state
   if (!isOpen) {
@@ -120,7 +119,7 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
       >
         <span>💡</span>
-        <span>{t("recommendations.title")} ({recs.length})</span>
+        <span>{t("recommendations.title")}{recs.length > 0 ? ` (${recs.length})` : ""}</span>
       </button>
     );
   }
@@ -135,6 +134,9 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
             ✕
           </button>
         </div>
+        {recs.length === 0 && (
+          <p className="text-xs text-gray-500 text-center py-2">{t("recommendations.noRecs")}</p>
+        )}
         <div className="space-y-2">
           {recs.map((rec) => {
             const cfg = urgencyConfig[rec.urgency_level] ?? urgencyConfig.low;

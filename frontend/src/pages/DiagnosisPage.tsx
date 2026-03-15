@@ -174,38 +174,42 @@ export function DiagnosisPage() {
         </div>
       )}
 
-      {/* Exam topics by frequency */}
-      {data!.exam_topics && data!.exam_topics.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1">
-            {t("diagnosis.examTopics")}
-          </h3>
-          <p className="text-xs text-gray-500 mb-3">{t("diagnosis.examTopicsHint")}</p>
-          <div className="space-y-2">
-            {data!.exam_topics.map((et) => (
-              <div
-                key={et.topic}
-                className="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-center gap-3"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-white truncate">{et.topic}</span>
-                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-                      {t("diagnosis.examCount", { count: et.exam_count })}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-purple-500 transition-all"
-                      style={{ width: Math.round(et.weight * 100) + "%" }}
-                    />
+      {/* Exam topics by frequency — always shown */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1">
+          {t("diagnosis.examTopics")}
+        </h3>
+        {data!.exam_topics && data!.exam_topics.length > 0 ? (
+          <>
+            <p className="text-xs text-gray-500 mb-3">{t("diagnosis.examTopicsHint")}</p>
+            <div className="space-y-2">
+              {data!.exam_topics.map((et) => (
+                <div
+                  key={et.topic}
+                  className="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-white truncate">{et.topic}</span>
+                      <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                        {t("diagnosis.examCount", { count: et.exam_count })}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-purple-500 transition-all"
+                        style={{ width: Math.round(et.weight * 100) + "%" }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500 mt-2 italic">{t("diagnosis.examTopicsInsufficient")}</p>
+        )}
+      </div>
     </div>
   );
 }
