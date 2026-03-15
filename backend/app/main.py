@@ -6,7 +6,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule, learning
+from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule, learning, diagnosis
 
 
 async def _reset_stuck_documents() -> None:
@@ -72,6 +72,7 @@ app.include_router(exams.router)
 app.include_router(transcripts.router)
 app.include_router(schedule.router)
 app.include_router(learning.router)
+app.include_router(diagnosis.router)
 
 
 @app.get("/health")

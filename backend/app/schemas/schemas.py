@@ -90,9 +90,16 @@ class FlashcardOut(BaseModel):
     stability: float = 0.0
     difficulty_fsrs: float = 0.3
     fsrs_state: str = "new"
+    learning_step: Optional[int] = None
+    next_review_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class FlashcardUpdate(BaseModel):
+    front: Optional[str] = None
+    back: Optional[str] = None
 
 
 class FlashcardReviewRequest(BaseModel):
@@ -201,6 +208,35 @@ class TopicPerformance(BaseModel):
     event_count: int
 
 
+# ── Diagnosis ─────────────────────────────────────────────────────────────────
+
+class DiagnosisStats(BaseModel):
+    flashcards_studied: int
+    quizzes_completed: int
+    homework_submitted: int
+    exams_submitted: int
+
+
+class TopicKnowledge(BaseModel):
+    topic: str
+    knowledge_level: Optional[float]  # 0.0–1.0, None if insufficient data
+    has_sufficient_data: bool
+    total_interactions: int
+
+
+class ExamTopicWeight(BaseModel):
+    topic: str
+    exam_count: int
+    weight: float  # 0.0–1.0 normalized
+
+
+class DiagnosisData(BaseModel):
+    stats: DiagnosisStats
+    topics: List[TopicKnowledge]
+    exam_topics: Optional[List[ExamTopicWeight]]  # None if < 3 distinct exam docs
+    exam_doc_count: int
+
+
 # ── Student Profile ───────────────────────────────────────────────────────────
 
 class StudentProfileUpsert(BaseModel):
@@ -234,6 +270,7 @@ class ChatMessageRequest(BaseModel):
     knowledge_mode: str = "general"
     language: str = "en"
     source: Optional[str] = None  # "homework_chat" → uses separate event_type
+    images: list[str] = []  # base64-encoded images (not stored in DB)
 
 
 class TopicSummaryRequest(BaseModel):
@@ -288,6 +325,7 @@ class HomeworkSubmissionOut(BaseModel):
     filenames: Optional[List[Any]]
     analysis_result: str
     score_text: Optional[str]
+    chat_messages: Optional[List[Any]] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

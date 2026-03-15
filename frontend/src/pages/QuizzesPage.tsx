@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { getQuizzes, generateQuiz, updateQuiz, deleteQuiz } from "../api/quizzes";
@@ -17,8 +17,11 @@ export function QuizzesPage() {
   const [difficulty, setDifficulty] = useState("medium");
   const [count, setCount] = useState(5);
   const [topic, setTopic] = useState("");
-  const [knowledgeMode, setKnowledgeMode] = useState("general");
   const [generating, setGenerating] = useState(false);
+  const [genPct, setGenPct] = useState(0);
+  const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const genStartTimeRef = useRef<number | null>(null);
+  const QUIZ_GEN_KEY = "quiz_pending_generation";
   const [genError, setGenError] = useState<string | null>(null);
 
   // Edit state
@@ -33,6 +36,34 @@ export function QuizzesPage() {
   useEffect(() => {
     fetchSessions();
   }, [courseId]);
+
+  // Restore generation state from localStorage on mount (e.g. user navigated away mid-generation)
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(QUIZ_GEN_KEY) || "null");
+      if (saved?.courseId === courseId && saved?.startTime
+          && Date.now() - saved.startTime < 5 * 60 * 1000) {
+        genStartTimeRef.current = saved.startTime;
+        setGenerating(true);
+      }
+    } catch {}
+  }, [courseId]);
+
+  useEffect(() => {
+    if (!generating) {
+      if (genTimerRef.current) clearInterval(genTimerRef.current);
+      setGenPct(0);
+      return;
+    }
+    const startTime = genStartTimeRef.current ?? Date.now();
+    const estimatedMs = Math.max(15000, count * 4000);
+    const tick = () => {
+      setGenPct(Math.min(Math.round((Date.now() - startTime) / estimatedMs * 100), 98));
+    };
+    tick();
+    genTimerRef.current = setInterval(tick, 1000);
+    return () => { if (genTimerRef.current) clearInterval(genTimerRef.current); };
+  }, [generating, count]);
 
   const toggleType = (type: string) => {
     setSelectedTypes((prev) => {
@@ -55,6 +86,8 @@ export function QuizzesPage() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!courseId) return;
+    genStartTimeRef.current = Date.now();
+    localStorage.setItem(QUIZ_GEN_KEY, JSON.stringify({ courseId, startTime: genStartTimeRef.current, count }));
     setGenerating(true);
     setGenError(null);
     try {
@@ -62,7 +95,7 @@ export function QuizzesPage() {
         course_id: courseId,
         topic: topic || undefined,
         count,
-        knowledge_mode: knowledgeMode,
+        knowledge_mode: "course_only",
         question_type: resolveQuestionType(),
         difficulty,
         language: i18n.language,
@@ -71,6 +104,8 @@ export function QuizzesPage() {
     } catch (err) {
       setGenError(err instanceof Error ? err.message : t("common.error"));
     } finally {
+      genStartTimeRef.current = null;
+      localStorage.removeItem(QUIZ_GEN_KEY);
       setGenerating(false);
     }
   };
@@ -195,26 +230,6 @@ export function QuizzesPage() {
           </div>
         </div>
 
-        <div>
-          <p className="text-sm text-gray-400 mb-2">{t("knowledgeMode.label")}</p>
-          <div className="flex gap-2">
-            {(["general", "course_only"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setKnowledgeMode(mode)}
-                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  knowledgeMode === mode
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                }`}
-              >
-                {t(`knowledgeMode.${mode === "general" ? "general" : "courseOnly"}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {genError && <p className="text-red-400 text-sm">{genError}</p>}
         <button
           type="submit"
@@ -223,6 +238,19 @@ export function QuizzesPage() {
         >
           {generating ? t("common.loading") : t("quizzes.generate")}
         </button>
+        {generating && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400 text-center">
+              {t("quizzes.generatingPct", { pct: genPct })}
+            </p>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${genPct}%` }}
+              />
+            </div>
+          </div>
+        )}
       </form>
 
       {/* History */}

@@ -1,15 +1,20 @@
+import json
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import QuizSession, QuizQuestion
 from app.schemas.schemas import (
     QuizGenerateRequest, QuizSessionOut, QuizSessionDetail,
     QuizQuestionOut, QuizSubmitRequest, QuizSessionUpdate,
 )
-from app.services.quiz_generator import generate_quiz, grade_quiz
+from app.services.quiz_generator import generate_quiz, grade_quiz, grade_quiz_stream_gen
+from app.services import claude as claude_svc
 
 router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
 
@@ -118,3 +123,48 @@ async def submit_quiz(
     await db.commit()
     await db.refresh(session)
     return await get_quiz(session_id, db)
+
+
+@router.post("/{session_id}/grade-stream")
+async def grade_quiz_sse(
+    session_id: str,
+    data: QuizSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE endpoint: streams per-question grading results as they complete."""
+    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(404, "Quiz session not found")
+    if session.completed_at:
+        raise HTTPException(400, "Quiz already submitted")
+
+    q_result = await db.execute(select(QuizQuestion).where(QuizQuestion.session_id == session_id))
+    questions = {q.id: q for q in q_result.scalars().all()}
+
+    # Save student answers upfront (data.answers is List[dict])
+    answers_map = {a["question_id"]: a["answer"] for a in data.answers}
+    for q in questions.values():
+        q.student_answer = answers_map.get(q.id, "")
+    await db.flush()
+
+    # Build system prompt once (DB access before generator starts)
+    system_prompt = await claude_svc.build_system_prompt(db, session.course_id)
+
+    async def generate():
+        async for event in grade_quiz_stream_gen(db, questions, system_prompt):
+            yield event
+        # Save final score using a fresh session (avoids stale-state after multiple flushes)
+        total = sum(q.points_possible for q in questions.values())
+        earned = sum((q.points_earned or 0.0) for q in questions.values())
+        final_score = (earned / total * 100) if total > 0 else 0
+        async with AsyncSessionLocal() as save_db:
+            result2 = await save_db.execute(select(QuizSession).where(QuizSession.id == session_id))
+            s = result2.scalar_one_or_none()
+            if s:
+                s.score = final_score
+                s.completed_at = datetime.now(timezone.utc)
+                await save_db.commit()
+        yield f"data: {json.dumps({'type': 'complete', 'score': final_score})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

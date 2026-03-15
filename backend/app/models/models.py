@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, date
+from typing import Optional
 from sqlalchemy import (
     String, Text, Float, Integer, Boolean, DateTime, Date,
     ForeignKey, JSON, func
@@ -104,6 +105,9 @@ class Flashcard(Base):
     stability: Mapped[float] = mapped_column(Float, default=0.0)
     difficulty_fsrs: Mapped[float] = mapped_column(Float, default=0.3)
     fsrs_state: Mapped[str] = mapped_column(String(20), default="new")
+    # Learning steps: sub-day intervals before graduating to long-term review
+    learning_step: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    next_review_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course"] = relationship("Course", back_populates="flashcards")
@@ -205,6 +209,7 @@ class ChatSession(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="SET NULL"))
     knowledge_mode: Mapped[str] = mapped_column(String(20), default="general")  # course_only|general
+    source: Mapped[str] = mapped_column(String(50), default="chat")  # "chat" | "homework_chat"
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -245,6 +250,7 @@ class HomeworkSubmission(Base):
     filenames: Mapped[list | None] = mapped_column(JSONB)  # list of original filenames
     analysis_result: Mapped[str] = mapped_column(Text, nullable=False)
     score_text: Mapped[str | None] = mapped_column(String(50))
+    chat_messages: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course | None"] = relationship("Course", back_populates="homework_submissions")

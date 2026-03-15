@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./i18n";
 import "./index.css";
+import { GenerationProvider } from "./context/GenerationContext";
 import { AppLayout, PlainPageLayout } from "./components/layout/AppLayout";
 import { CourseLayout } from "./components/layout/CourseLayout";
 import { WelcomePage } from "./pages/WelcomePage";
@@ -20,6 +21,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <GenerationProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
@@ -53,5 +55,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </Route>
       </Routes>
     </BrowserRouter>
+    </GenerationProvider>
   </React.StrictMode>
 );

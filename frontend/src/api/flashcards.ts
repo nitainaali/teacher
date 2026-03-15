@@ -57,3 +57,9 @@ export const deleteDeck = (deckId: string) =>
 
 export const reviewFlashcard = (id: string, quality: number) =>
   client.post<Flashcard>(`/api/flashcards/${id}/review`, { quality }).then((r) => r.data);
+
+export const updateFlashcard = (id: string, front: string, back: string) =>
+  client.put<Flashcard>(`/api/flashcards/${id}`, { front, back }).then((r) => r.data);
+
+export const deleteFlashcard = (id: string) =>
+  client.delete(`/api/flashcards/${id}`);

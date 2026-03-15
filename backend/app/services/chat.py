@@ -11,6 +11,7 @@ async def get_or_create_session(
     session_id: Optional[str],
     course_id: Optional[str],
     knowledge_mode: str,
+    source: str = "chat",
 ) -> ChatSession:
     if session_id:
         result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
@@ -18,7 +19,7 @@ async def get_or_create_session(
         if session:
             return session
 
-    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode)
+    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode, source=source)
     db.add(session)
     await db.flush()
     return session
@@ -32,10 +33,12 @@ async def send_message_stream(
     knowledge_mode: str,
     language: str = "en",
     source: Optional[str] = None,
+    images: list[str] | None = None,
 ) -> AsyncGenerator[str, None]:
-    session = await get_or_create_session(db, session_id, course_id, knowledge_mode)
+    session_source = source or "chat"
+    session = await get_or_create_session(db, session_id, course_id, knowledge_mode, source=session_source)
 
-    # Persist user message
+    # Persist user message (text only — images are ephemeral, not stored in history)
     user_msg = ChatMessage(session_id=session.id, role="user", content=message)
     db.add(user_msg)
     await db.flush()
@@ -48,6 +51,20 @@ async def send_message_stream(
     )
     all_messages = result.scalars().all()
     messages_payload = [{"role": m.role, "content": m.content} for m in all_messages]
+
+    # If images were pasted, replace the last user message with multimodal content
+    if images:
+        image_blocks = [
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": b64},
+            }
+            for b64 in images
+        ]
+        messages_payload[-1] = {
+            "role": "user",
+            "content": image_blocks + [{"type": "text", "text": message}],
+        }
 
     extra_system = None
     if knowledge_mode == "course_only" and course_id:

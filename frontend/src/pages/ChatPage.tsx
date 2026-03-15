@@ -16,6 +16,7 @@ export function ChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [chatError, setChatError] = useState<string | null>(null);
+  const [pastedImages, setPastedImages] = useState<string[]>([]); // data URLs for preview
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadSessions(); }, []);
@@ -36,30 +37,51 @@ export function ChatPage() {
     setMessages([]);
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const imageItem = Array.from(e.clipboardData.items).find((item) =>
+      item.type.startsWith("image/")
+    );
+    if (!imageItem) return;
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPastedImages((prev) => [...prev, reader.result as string]);
+    };
+    reader.readAsDataURL(blob);
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || streaming) return;
+    if ((!input.trim() && pastedImages.length === 0) || streaming) return;
+    const currentImages = [...pastedImages];
+    const currentInput = input.trim() || "מה יש בתמונה?";
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       session_id: activeSessionId || "",
       role: "user",
-      content: input,
+      content: input.trim() || "🖼️",
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setPastedImages([]);
     setStreaming(true);
     setStreamingText("");
     setChatError(null);
+    // Strip data:...;base64, prefix to get pure base64
+    const base64Images = currentImages.map((d) => d.split(",")[1]).filter(Boolean);
     let sessionIdFromStream: string | null = null;
     let assistantText = "";
     try {
       for await (const chunk of streamChatMessageFetch({
-        message: userMsg.content,
+        message: currentInput,
         session_id: activeSessionId ?? undefined,
         course_id: courseId,
         knowledge_mode: knowledgeMode,
         language: i18n.language,
+        images: base64Images.length > 0 ? base64Images : undefined,
       })) {
         if (!sessionIdFromStream && chunk.startsWith("[SESSION_ID:")) {
           sessionIdFromStream = chunk.slice(12, -1);
@@ -168,12 +190,28 @@ export function ChatPage() {
             {chatError}
           </div>
         )}
-        <form onSubmit={handleSend} className="px-4 py-3 border-t border-gray-700 flex gap-2">
+        {pastedImages.length > 0 && (
+          <div className="flex gap-2 px-4 pt-2 flex-wrap border-t border-gray-700">
+            {pastedImages.map((img, i) => (
+              <div key={i} className="relative shrink-0">
+                <img src={img} className="w-14 h-14 object-cover rounded border border-gray-600" />
+                <button
+                  type="button"
+                  onClick={() => setPastedImages((prev) => prev.filter((_, j) => j !== i))}
+                  className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center leading-none"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={handleSend} className="px-4 py-3 border-t border-gray-700 flex gap-2" onPaste={handlePaste}>
           <input value={input} onChange={(e) => setInput(e.target.value)}
             placeholder={t("chat.placeholder")} disabled={streaming}
             className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
-          <button type="submit" disabled={!input.trim() || streaming}
+          <button type="submit" disabled={(!input.trim() && pastedImages.length === 0) || streaming}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             {t("chat.send")}

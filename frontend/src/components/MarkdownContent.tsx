@@ -79,7 +79,7 @@ export function MarkdownContent({ content, className = "" }: MarkdownContentProp
     <div dir="auto" className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: "inherit" }]]}
         components={components}
       >
         {content}

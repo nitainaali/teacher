@@ -34,6 +34,8 @@ export interface Flashcard {
   stability: number;
   difficulty_fsrs: number;
   fsrs_state: string;
+  learning_step: number | null;
+  next_review_at: string | null;
   created_at: string;
 }
 
@@ -111,15 +113,6 @@ export interface ExamUpload {
   reference_exam_id: string | null;
   analysis: Record<string, unknown> | null;
   created_at: string;
-}
-
-export interface HomeworkFeedback {
-  overall_correct: boolean;
-  final_answer_correct: boolean;
-  score_estimate: string;
-  errors: Array<{ step: string; description: string; correction: string }>;
-  strengths: string[];
-  suggestions: string[];
 }
 
 export interface Recommendation {

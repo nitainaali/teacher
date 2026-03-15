@@ -29,12 +29,13 @@ export async function* streamChatMessageFetch(data: {
   course_id?: string;
   knowledge_mode: string;
   language?: string;
+  images?: string[];  // pure base64 strings (no data: prefix)
 }): AsyncGenerator<string> {
   const baseURL = import.meta.env.VITE_API_URL || "";
   const response = await fetch(`${baseURL}/api/chat/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, images: data.images ?? [] }),
   });
 
   if (!response.ok) {

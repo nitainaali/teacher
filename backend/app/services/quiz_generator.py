@@ -1,6 +1,7 @@
+import asyncio
 import json
 import re
-from typing import Optional
+from typing import Optional, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import QuizSession, QuizQuestion
@@ -29,12 +30,14 @@ async def generate_quiz(
     db.add(session)
     await db.flush()
 
-    extra_system = None
-    if knowledge_mode == "course_only":
-        query = topic or "general course content"
-        context = await rag.retrieve_context(db, query, course_id, top_k=5)
-        if context:
-            extra_system = f"Relevant course materials:\n\n{context}"
+    # Always use course materials (RAG context)
+    query = topic or "general course content"
+    context = await rag.retrieve_context(db, query, course_id, top_k=10)
+    extra_system = (
+        "Use ONLY the following course materials to generate questions. "
+        "Do not use general knowledge not present in these materials.\n\n"
+        f"{context}"
+    ) if context else None
 
     topic_str = f" on the topic: {topic}" if topic else ""
     difficulty_map = {"easy": "basic conceptual", "medium": "intermediate", "hard": "advanced and challenging"}
@@ -46,15 +49,20 @@ async def generate_quiz(
     else:
         qtype_instruction = "Mix multiple choice and free text questions."
     prompt = (
-        f"Generate {count} {difficulty_desc} quiz questions{topic_str} for an electrical engineering student. "
-        f"{qtype_instruction} "
-        "Return a JSON array. Each object must have:\n"
-        "- question_text: string\n"
-        "- question_type: 'multiple_choice' or 'free_text'\n"
-        "- options: array of {label, value} for MC, null for free_text\n"
-        "- correct_answer: string\n"
-        "- topic: 2-4 word topic label\n"
-        "Raw JSON array only, no markdown."
+        f"Generate {count} {difficulty_desc} quiz questions{topic_str} "
+        f"for an electrical engineering student. {qtype_instruction}\n"
+        "Return a JSON array. Each element must have exactly these fields:\n"
+        "  question_text: string\n"
+        "  question_type: \"multiple_choice\" or \"free_text\"\n"
+        "  options: for multiple_choice, exactly 4 objects: "
+        "[{\"label\": \"Full option text\", \"value\": \"A\"}, "
+        "{\"label\": \"...\", \"value\": \"B\"}, "
+        "{\"label\": \"...\", \"value\": \"C\"}, "
+        "{\"label\": \"...\", \"value\": \"D\"}]; for free_text: null\n"
+        "  correct_answer: for multiple_choice, the letter A/B/C/D; "
+        "for free_text, the complete correct answer\n"
+        "  topic: 2-4 word topic label\n"
+        "Output raw JSON array only, no markdown."
     )
 
     response = await claude.complete(
@@ -72,7 +80,7 @@ async def generate_quiz(
             session_id=session.id,
             question_text=item.get("question_text", ""),
             question_type=item.get("question_type", "free_text"),
-            options=item.get("options"),
+            options=_normalize_options(item.get("options")),
             correct_answer=item.get("correct_answer", ""),
             topic=item.get("topic"),
             points_possible=1.0,
@@ -137,6 +145,84 @@ async def grade_quiz(db: AsyncSession, session: QuizSession, answers: list[dict]
     session.score = (earned_points / total_points * 100) if total_points > 0 else 0
     await db.flush()
     return session
+
+
+async def _grade_one_ft(
+    question_text: str, correct_answer: str, student_answer: str, system_prompt: str
+) -> tuple[float, str]:
+    """Grade one free-text answer via Claude. Pure Claude call — no DB access, parallelizable."""
+    prompt = (
+        f"Question: {question_text}\n"
+        f"Correct answer: {correct_answer}\n"
+        f"Student answer: {student_answer}\n\n"
+        'Grade this answer 0-1 (0=wrong, 0.5=partial, 1=correct). '
+        'Return JSON: {"score": <0|0.5|1>, "feedback": "<brief feedback>"}'
+    )
+    try:
+        resp = await claude.complete_with_system(
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+        )
+        data = _parse_json_obj(resp)
+        return float(data.get("score", 0)), data.get("feedback", "")
+    except Exception:
+        return 0.0, ""
+
+
+async def grade_quiz_stream_gen(
+    db: AsyncSession,
+    questions: dict,      # {q_id: QuizQuestion} — student_answer already saved
+    system_prompt: str,
+) -> AsyncIterator[str]:
+    """Async generator yielding SSE event strings for the grade-stream endpoint."""
+    mc_qs = [(qid, q) for qid, q in questions.items() if q.question_type == "multiple_choice"]
+    ft_qs = [(qid, q) for qid, q in questions.items() if q.question_type != "multiple_choice"]
+
+    # Grade MC questions instantly (no Claude needed)
+    for qid, q in mc_qs:
+        correct = (q.student_answer or "").strip().upper() == (q.correct_answer or "").strip().upper()
+        q.points_earned = q.points_possible if correct else 0.0
+        q.ai_feedback = "Correct!" if correct else f"Correct answer: {q.correct_answer}"
+        await db.flush()
+        yield f"data: {json.dumps({'type': 'graded', 'question_id': qid, 'points_earned': q.points_earned, 'points_possible': q.points_possible, 'ai_feedback': q.ai_feedback, 'correct_answer': q.correct_answer})}\n\n"
+
+    # Signal free-text questions as "checking"
+    for qid, _ in ft_qs:
+        yield f"data: {json.dumps({'type': 'checking', 'question_id': qid})}\n\n"
+
+    # Grade free-text in parallel, emit each result as it completes
+    async def grade_and_tag(qid: str, q: QuizQuestion) -> tuple[str, float, str]:
+        score, feedback = await _grade_one_ft(
+            q.question_text, q.correct_answer or "", q.student_answer or "", system_prompt
+        )
+        return qid, score, feedback
+
+    tasks = [asyncio.create_task(grade_and_tag(qid, q)) for qid, q in ft_qs]
+    for coro in asyncio.as_completed(tasks):
+        qid, score, feedback = await coro
+        q = questions[qid]
+        q.points_earned = score * q.points_possible
+        q.ai_feedback = feedback
+        await db.flush()
+        yield f"data: {json.dumps({'type': 'graded', 'question_id': qid, 'points_earned': q.points_earned, 'points_possible': q.points_possible, 'ai_feedback': feedback, 'correct_answer': q.correct_answer})}\n\n"
+
+
+def _normalize_options(options) -> list | None:
+    """Ensure options are [{label, value}] format regardless of what Claude returned."""
+    if not options:
+        return None
+    letters = ["A", "B", "C", "D"]
+    result = []
+    for i, opt in enumerate(options[:4]):
+        if isinstance(opt, str):
+            result.append({"label": opt, "value": letters[i]})
+        elif isinstance(opt, dict):
+            label = (opt.get("label") or opt.get("text") or opt.get("option")
+                     or opt.get("content") or str(opt))
+            value = opt.get("value") or letters[i]
+            result.append({"label": label, "value": value})
+    return result or None
 
 
 def _parse_json_array(text: str) -> list[dict]:

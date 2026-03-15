@@ -52,6 +52,8 @@ async def check_homework(
     knowledge_mode: str = Form("general"),
     language: str = Form("en"),
     user_description: Optional[str] = Form(None),
+    mode: str = Form("check"),
+    revelation_level: int = Form(1),
     db: AsyncSession = Depends(get_db),
 ):
     images_b64: list[str] = []
@@ -79,9 +81,9 @@ async def check_homework(
         collected: list[str] = []
         success = False
         try:
-            async for token in check_homework_stream(images_b64, course_id, knowledge_mode, db, language=language):
+            async for token in check_homework_stream(images_b64, course_id, knowledge_mode, db, language=language, user_description=user_description, mode=mode, revelation_level=revelation_level):
                 collected.append(token)
-                yield f"data: {token}\n\n"
+                yield f"data: {token.replace(chr(10), chr(92) + 'n')}\n\n"
             success = True
         except Exception as e:
             yield f"data: [ERROR:{str(e)[:200]}]\n\n"
@@ -119,6 +121,25 @@ async def get_homework_submission(submission_id: str, db: AsyncSession = Depends
     sub = result.scalar_one_or_none()
     if not sub:
         raise HTTPException(404, "Submission not found")
+    return sub
+
+
+@router.patch("/history/{submission_id}", response_model=HomeworkSubmissionOut)
+async def update_homework_submission(
+    submission_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
+    )
+    sub = result.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(404, "Submission not found")
+    if "chat_messages" in body:
+        sub.chat_messages = body["chat_messages"]
+    await db.commit()
+    await db.refresh(sub)
     return sub
 
 

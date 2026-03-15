@@ -5,8 +5,8 @@ Reference: https://github.com/open-spaced-repetition/fsrs4anki
 Grade mapping: 1=Again, 2=Hard, 3=Good, 4=Easy
 Frontend quality mapping: 0=Again → grade 1, 1=Hard → grade 2, 2=Good → grade 3, 3=Easy → grade 4
 """
-from datetime import date, timedelta
-from typing import Tuple
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional, Tuple
 
 # Default FSRS-4.5 weights (17 parameters, trained on large open dataset)
 W = [
@@ -129,3 +129,63 @@ def fsrs_next(
 
     next_review = date.today() + timedelta(days=interval)
     return new_s, new_d, interval, new_state, next_review
+
+
+# ── Learning steps (sub-day intervals for new/learning cards) ─────────────────
+
+# Configurable in future via Settings page — fixed defaults for now (FSRS recommended: 1min, 10min)
+LEARNING_STEPS_MINUTES: list[int] = [1, 10]
+
+
+def fsrs_learning_step(
+    current_step: Optional[int],
+    fsrs_state: str,
+    stability: float,
+    difficulty: float,
+    grade: int,
+) -> Tuple[Optional[int], str, Optional[datetime], Optional[date], int]:
+    """
+    Handle learning step transitions for 'new' and 'learning' state cards.
+
+    Args:
+        current_step: current step index (None = new card that hasn't started steps yet)
+        fsrs_state: 'new' or 'learning'
+        stability: current FSRS stability
+        difficulty: current FSRS difficulty
+        grade: 1=Again, 2=Hard, 3=Good, 4=Easy
+
+    Returns:
+        (new_learning_step, new_fsrs_state, next_review_at, next_review_date, interval_days)
+        - next_review_at: datetime for sub-day scheduling (None if graduating to review)
+        - next_review_date: date for day-level scheduling
+        - interval_days: 0 while in learning steps, >0 when graduated
+    """
+    now = datetime.now(timezone.utc)
+    steps = LEARNING_STEPS_MINUTES
+
+    if grade == 4:
+        # Easy — graduate immediately to review with FSRS interval
+        grad_stability = stability if stability > 0 else _initial_stability(4)
+        grad_difficulty = difficulty if difficulty > 0 else _initial_difficulty(4)
+        interval = _interval_from_stability(grad_stability)
+        next_date = date.today() + timedelta(days=interval)
+        return None, "review", None, next_date, interval
+
+    if grade in (1, 2):
+        # Again / Hard — go to step 0 (first step, 1 minute)
+        next_at = now + timedelta(minutes=steps[0])
+        return 0, "learning", next_at, date.today(), 0
+
+    # grade == 3 (Good) — advance to next step
+    next_step = (current_step if current_step is not None else -1) + 1
+    if next_step < len(steps):
+        # Stay in learning, advance to next step
+        next_at = now + timedelta(minutes=steps[next_step])
+        return next_step, "learning", next_at, date.today(), 0
+    else:
+        # Completed all steps — graduate to review with FSRS interval
+        grad_stability = stability if stability > 0 else _initial_stability(3)
+        grad_difficulty = difficulty if difficulty > 0 else _initial_difficulty(3)
+        interval = _interval_from_stability(grad_stability)
+        next_date = date.today() + timedelta(days=interval)
+        return None, "review", None, next_date, interval

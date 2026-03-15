@@ -28,6 +28,15 @@ export function TopicSummaryPage() {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTopicName, setSelectedTopicName] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(
+        JSON.parse(localStorage.getItem(`dismissedTopicSuggestions_${courseId}`) || "[]")
+      );
+    } catch {
+      return new Set<string>();
+    }
+  });
 
   const fetchAllSummaries = () => {
     if (!courseId) return;
@@ -59,10 +68,10 @@ export function TopicSummaryPage() {
   // Topics that have at least one saved summary
   const topicsWithSummaries = Object.keys(summariesByTopic);
 
-  // Topics from progress that don't yet have a summary
+  // Topics from progress that don't yet have a summary (and haven't been dismissed)
   const topicsWithoutSummaries = topics
     .map((e) => e.topic)
-    .filter((t) => !summariesByTopic[t]);
+    .filter((t) => !summariesByTopic[t] && !dismissed.has(t));
 
   const selectTopic = (topicName: string) => {
     setSelectedTopicName(topicName);
@@ -92,6 +101,35 @@ export function TopicSummaryPage() {
       fetchAllSummaries();
     } catch {
       // silently ignore
+    }
+  };
+
+  const handleDeleteTopic = async (topicName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const toDelete = summariesByTopic[topicName] || [];
+    await Promise.all(toDelete.map((s) => deleteTopicSummary(s.id)));
+    if (toDelete.some((s) => s.content === summary)) setSummary("");
+    if (selectedTopicName === topicName) {
+      setSelectedTopicName(null);
+      setTopicInput("");
+    }
+    fetchAllSummaries();
+  };
+
+  const handleDismissSuggestion = (topicName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = new Set(dismissed);
+    next.add(topicName);
+    setDismissed(next);
+    try {
+      localStorage.setItem(
+        `dismissedTopicSuggestions_${courseId}`,
+        JSON.stringify([...next])
+      );
+    } catch {}
+    if (selectedTopicName === topicName) {
+      setSelectedTopicName(null);
+      setTopicInput("");
     }
   };
 
@@ -174,20 +212,29 @@ export function TopicSummaryPage() {
                     const saved = summariesByTopic[topicName] || [];
                     return (
                       <div key={topicName}>
-                        <button
-                          onClick={() => selectTopic(topicName)}
-                          className={[
-                            "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
-                            isSelected
-                              ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
-                              : "text-gray-300 hover:bg-gray-700",
-                          ].join(" ")}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
-                            <span className="truncate">{topicName}</span>
-                          </span>
-                        </button>
+                        <div className="group flex items-center gap-0.5">
+                          <button
+                            onClick={() => selectTopic(topicName)}
+                            className={[
+                              "flex-1 min-w-0 text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
+                              isSelected
+                                ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
+                                : "text-gray-300 hover:bg-gray-700",
+                            ].join(" ")}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
+                              <span className="truncate">{topicName}</span>
+                            </span>
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteTopic(topicName, e)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400 p-1 rounded shrink-0 text-xs"
+                            title={t("topicSummary.deleteTopic")}
+                          >
+                            🗑
+                          </button>
+                        </div>
 
                         {isSelected && saved.length > 0 && (
                           <div className="ml-3 mt-0.5 mb-1 space-y-0.5">
@@ -233,21 +280,29 @@ export function TopicSummaryPage() {
                   {topicsWithoutSummaries.map((topicName) => {
                     const isSelected = selectedTopicName === topicName;
                     return (
-                      <button
-                        key={topicName}
-                        onClick={() => selectTopic(topicName)}
-                        className={[
-                          "w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
-                          isSelected
-                            ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
-                            : "text-gray-300 hover:bg-gray-700",
-                        ].join(" ")}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
-                          <span className="truncate">{topicName}</span>
-                        </span>
-                      </button>
+                      <div key={topicName} className="group flex items-center gap-0.5">
+                        <button
+                          onClick={() => selectTopic(topicName)}
+                          className={[
+                            "flex-1 min-w-0 text-left px-2.5 py-2 rounded-lg text-sm transition-colors",
+                            isSelected
+                              ? "bg-blue-600/20 text-blue-300 border border-blue-700/50"
+                              : "text-gray-300 hover:bg-gray-700",
+                          ].join(" ")}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-xs opacity-60">{isSelected ? "▸" : "•"}</span>
+                            <span className="truncate">{topicName}</span>
+                          </span>
+                        </button>
+                        <button
+                          onClick={(e) => handleDismissSuggestion(topicName, e)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400 p-1 rounded shrink-0 text-xs"
+                          title={t("topicSummary.dismissSuggestion")}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -329,7 +384,7 @@ export function TopicSummaryPage() {
           </div>
         )}
 
-        {!summary && !streaming && !topicInput && allTopicNames.length === 0 && hasDocuments !== false && (
+        {!summary && !streaming && !topicInput && topicsWithSummaries.length === 0 && topicsWithoutSummaries.length === 0 && hasDocuments !== false && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="text-5xl mb-4 select-none">📚</div>
             <p className="text-gray-400 text-sm max-w-sm">{t("topicSummary.noTopics")}</p>

@@ -1,31 +1,51 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
+import { updateHomeworkChat } from "../api/homework";
+import type { ChatMessage } from "../api/homework";
 
 interface HomeworkChatProps {
   homeworkContext: string;
   courseId?: string;
   language: string;
+  submissionId?: string;       // ID of the homework submission to save chat to
+  initialMessages?: ChatMessage[]; // Restored messages from history
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkChatProps) {
+export function HomeworkChat({
+  homeworkContext,
+  courseId,
+  language,
+  submissionId,
+  initialMessages,
+}: HomeworkChatProps) {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // If initialMessages change (e.g. switching history items), reset messages
+  useEffect(() => {
+    setMessages(initialMessages ?? []);
+    setSessionId(null);
+  }, [submissionId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const saveMessages = async (msgs: ChatMessage[]) => {
+    if (!submissionId) return;
+    try {
+      await updateHomeworkChat(submissionId, msgs);
+    } catch {
+      // silently ignore — chat saving is best-effort
+    }
+  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -37,12 +57,14 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
       ? `${t("homework.chatContextPrefix")}:\n---\n${homeworkContext}\n---\n\n${text}`
       : text;
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    const newUserMsg: ChatMessage = { role: "user", content: text };
+    const updatedWithUser = [...messages, newUserMsg];
+    setMessages(updatedWithUser);
     setInput("");
     setStreaming(true);
 
-    const assistantPlaceholder = "";
-    setMessages((prev) => [...prev, { role: "assistant", content: assistantPlaceholder }]);
+    const assistantPlaceholder: ChatMessage = { role: "assistant", content: "" };
+    setMessages((prev) => [...prev, assistantPlaceholder]);
 
     try {
       const response = await fetch(`${API_BASE}/api/chat/message`, {
@@ -93,11 +115,19 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
       }
 
       if (newSessionId) setSessionId(newSessionId);
+
+      // Save the full conversation to DB after each exchange
+      const finalMessages: ChatMessage[] = [
+        ...updatedWithUser,
+        { role: "assistant", content: accumulated },
+      ];
+      await saveMessages(finalMessages);
+      setMessages(finalMessages);
     } catch {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: t("common.error") },
-      ]);
+      const errorMsg: ChatMessage = { role: "assistant", content: t("common.error") };
+      const withError = [...updatedWithUser, errorMsg];
+      setMessages(withError);
+      await saveMessages(withError);
     } finally {
       setStreaming(false);
     }
@@ -146,7 +176,12 @@ export function HomeworkChat({ homeworkContext, courseId, language }: HomeworkCh
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
           placeholder={t("homework.chatPlaceholder")}
           disabled={streaming}
           className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"

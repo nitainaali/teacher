@@ -50,15 +50,36 @@ async def complete(
     max_tokens: int = 2048,
     extra_system: Optional[str] = None,
     language: str = "en",
+    model: Optional[str] = None,
 ) -> str:
     """Non-streaming Claude completion with student context injected."""
     system = await build_system_prompt(db, course_id, language=language)
     if extra_system:
         system = f"{system}\n\n{extra_system}"
 
+    _model = model or "claude-sonnet-4-6"
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
     response = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=_model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=messages,
+    )
+    return response.content[0].text
+
+
+async def complete_with_system(
+    system: str,
+    messages: list[dict],
+    max_tokens: int = 2048,
+    model: Optional[str] = None,
+) -> str:
+    """Non-streaming Claude completion with pre-built system prompt (no DB access).
+    Used for parallel flashcard generation to avoid shared session conflicts."""
+    _model = model or "claude-sonnet-4-6"
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+    response = await client.messages.create(
+        model=_model,
         max_tokens=max_tokens,
         system=system,
         messages=messages,
