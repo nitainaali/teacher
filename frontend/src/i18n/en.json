@@ -306,7 +306,10 @@
     "hideTopic": "Hide topic",
     "showHidden": "Show hidden ({{count}})",
     "hideHidden": "Hide hidden",
-    "restoreAll": "Restore all"
+    "restoreAll": "Restore all",
+    "examTopics": "Exam Topics",
+    "examTopicsHint": "Topics that appeared most frequently in your past exams",
+    "examCount": "{{count}} exam(s)"
   },
   "progress": {
     "title": "Progress",

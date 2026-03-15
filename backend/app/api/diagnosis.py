@@ -111,8 +111,9 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
             topic_negative[topic] += abs(w)
         topic_count[topic] += 1
 
-    # Build TopicKnowledge for each document topic (+ any with performance data)
-    all_topics = document_topics | set(topic_count.keys())
+    # Build TopicKnowledge for each document topic only.
+    # Performance events for non-document topics (e.g. homework question topics) are excluded.
+    all_topics = document_topics
 
     topics: list[TopicKnowledge] = []
     for topic in all_topics:
