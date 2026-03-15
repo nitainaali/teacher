@@ -115,6 +115,15 @@ export interface ExamUpload {
   created_at: string;
 }
 
+export interface HomeworkFeedback {
+  overall_correct: boolean;
+  final_answer_correct: boolean;
+  score_estimate: string;
+  errors: Array<{ step: string; description: string; correction: string }>;
+  strengths: string[];
+  suggestions: string[];
+}
+
 export interface Recommendation {
   topic: string;
   urgency: number;
