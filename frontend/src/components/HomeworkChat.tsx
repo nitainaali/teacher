@@ -8,23 +8,12 @@ interface HomeworkChatProps {
   homeworkContext: string;
   courseId?: string;
   language: string;
-  submissionId?: string;        // ID of the homework submission to save chat to
+  submissionId?: string;           // ID of the homework submission to save chat to
   initialMessages?: ChatMessage[]; // Restored messages from history
-  contextFiles?: File[];        // Original uploaded files (for image context on first message)
+  contextImagesB64?: string[];     // Processed base64 images stored in DB — always available
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
-
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]); // strip "data:image/jpeg;base64," prefix
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 
 export function HomeworkChat({
   homeworkContext,
@@ -32,7 +21,7 @@ export function HomeworkChat({
   language,
   submissionId,
   initialMessages,
-  contextFiles,
+  contextImagesB64,
 }: HomeworkChatProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
@@ -80,11 +69,10 @@ export function HomeworkChat({
     setMessages((prev) => [...prev, assistantPlaceholder]);
 
     try {
-      // On the first message, include original images so Claude can reference them directly
-      let images: string[] | undefined;
-      if (isFirst && contextFiles && contextFiles.length > 0) {
-        images = await Promise.all(contextFiles.map(fileToBase64));
-      }
+      // On the first message, include the homework images so Claude can see the original problem
+      const images = isFirst && contextImagesB64 && contextImagesB64.length > 0
+        ? contextImagesB64
+        : undefined;
 
       const response = await fetch(`${API_BASE}/api/chat/message`, {
         method: "POST",

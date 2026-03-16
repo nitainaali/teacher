@@ -27,9 +27,6 @@ export function HomeworkPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HomeworkSubmission | null>(null);
 
-  // Files from the last successful submission (for image context in follow-up chat)
-  const [submittedFiles, setSubmittedFiles] = useState<File[]>([]);
-
   const pendingKey = courseId ? `hw_pending_${courseId}` : null;
 
   const fetchHistory = useCallback(async (): Promise<HomeworkSubmission[]> => {
@@ -151,9 +148,6 @@ export function HomeworkPage() {
     form.append("revelation_level", String(revelationLevel));
     if (description.trim()) form.append("user_description", description.trim());
 
-    // Save files for follow-up chat image context
-    const currentFiles = [...files];
-
     try {
       const response = await fetch(`${API_BASE}/api/homework/check`, {
         method: "POST",
@@ -192,7 +186,6 @@ export function HomeworkPage() {
       const items = await fetchHistory();
       if (items.length > 0) {
         setSelectedHistory(items[0]);
-        setSubmittedFiles(currentFiles);
       }
     } catch (err) {
       setCheckError(err instanceof Error ? err.message : t("common.error"));
@@ -204,7 +197,6 @@ export function HomeworkPage() {
 
   const loadHistoryItem = (sub: HomeworkSubmission) => {
     setSelectedHistory(sub);
-    setSubmittedFiles([]); // no file context for history items
     setCheckError(null);
   };
 
@@ -214,7 +206,6 @@ export function HomeworkPage() {
       await deleteHomeworkSubmission(id);
       if (selectedHistory?.id === id) {
         setSelectedHistory(null);
-        setSubmittedFiles([]);
       }
       fetchHistory();
     } catch {
@@ -428,7 +419,7 @@ export function HomeworkPage() {
             language={i18n.language}
             submissionId={selectedHistory.id}
             initialMessages={selectedHistory.chat_messages ?? undefined}
-            contextFiles={submittedFiles.length > 0 ? submittedFiles : undefined}
+            contextImagesB64={selectedHistory.images_b64 ?? undefined}
           />
         )}
       </div>

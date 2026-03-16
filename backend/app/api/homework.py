@@ -29,9 +29,19 @@ async def _save_submission(
     user_description: Optional[str],
     filenames: List[str],
     analysis_result: str,
+    images_b64: Optional[List[str]] = None,
 ):
     """Save homework submission in a new DB session (called after streaming)."""
     score_text = _extract_score(analysis_result)
+
+    # Cap at 3 images and only if total base64 size < 6 MB (to keep DB rows sane)
+    saved_images: Optional[List[str]] = None
+    if images_b64:
+        capped = images_b64[:3]
+        total_len = sum(len(b) for b in capped)
+        if total_len < 6_000_000:
+            saved_images = capped
+
     async with AsyncSessionLocal() as db:
         sub = HomeworkSubmission(
             course_id=course_id,
@@ -39,6 +49,7 @@ async def _save_submission(
             filenames=filenames,
             analysis_result=analysis_result,
             score_text=score_text,
+            images_b64=saved_images,
         )
         db.add(sub)
         await db.commit()
@@ -99,7 +110,7 @@ async def check_homework(
             full_result = "".join(collected)
             if full_result.strip():
                 background_tasks.add_task(
-                    _save_submission, course_id, user_description, filenames, full_result
+                    _save_submission, course_id, user_description, filenames, full_result, images_b64
                 )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
