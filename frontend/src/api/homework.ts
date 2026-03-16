@@ -13,6 +13,7 @@ export interface HomeworkSubmission {
   analysis_result: string;
   score_text: string | null;
   chat_messages: ChatMessage[] | null;
+  images_b64: string[] | null;
   created_at: string;
 }
 
