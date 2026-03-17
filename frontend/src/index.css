@@ -7,3 +7,11 @@
     @apply bg-gray-950 text-white;
   }
 }
+
+/* KaTeX math always renders LTR, even inside RTL paragraphs (dir="auto").
+   Without this, inline formulas inside Hebrew text appear mirrored. */
+.katex,
+.katex-display {
+  direction: ltr;
+  unicode-bidi: embed;
+}

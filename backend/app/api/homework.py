@@ -153,6 +153,8 @@ async def update_homework_submission(
         raise HTTPException(404, "Submission not found")
     if "chat_messages" in body:
         sub.chat_messages = body["chat_messages"]
+    if "chat_session_id" in body:
+        sub.chat_session_id = body["chat_session_id"]
     await db.commit()
     await db.refresh(sub)
     return sub

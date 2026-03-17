@@ -252,6 +252,7 @@ class HomeworkSubmission(Base):
     score_text: Mapped[str | None] = mapped_column(String(50))
     chat_messages: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     images_b64: Mapped[list | None] = mapped_column(JSONB, nullable=True)  # processed base64 images (capped at 3)
+    chat_session_id: Mapped[str | None] = mapped_column(String, nullable=True)  # links to ChatSession for context continuity
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course | None"] = relationship("Course", back_populates="homework_submissions")

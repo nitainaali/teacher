@@ -14,6 +14,7 @@ export interface HomeworkSubmission {
   score_text: string | null;
   chat_messages: ChatMessage[] | null;
   images_b64: string[] | null;
+  chat_session_id: string | null;
   created_at: string;
 }
 
@@ -31,7 +32,14 @@ export const getHomeworkSubmission = (id: string) =>
 export const deleteHomeworkSubmission = (id: string) =>
   client.delete(`/api/homework/history/${id}`);
 
-export const updateHomeworkChat = (id: string, chatMessages: ChatMessage[]) =>
+export const updateHomeworkChat = (
+  id: string,
+  chatMessages: ChatMessage[],
+  chatSessionId?: string,
+) =>
   client
-    .patch<HomeworkSubmission>(`/api/homework/history/${id}`, { chat_messages: chatMessages })
+    .patch<HomeworkSubmission>(`/api/homework/history/${id}`, {
+      chat_messages: chatMessages,
+      ...(chatSessionId ? { chat_session_id: chatSessionId } : {}),
+    })
     .then((r) => r.data);

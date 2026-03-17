@@ -11,6 +11,7 @@ interface HomeworkChatProps {
   submissionId?: string;           // ID of the homework submission to save chat to
   initialMessages?: ChatMessage[]; // Restored messages from history
   contextImagesB64?: string[];     // Processed base64 images stored in DB — always available
+  initialSessionId?: string;       // Restored chat session ID from DB — preserves context across navigation
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -22,28 +23,29 @@ export function HomeworkChat({
   submissionId,
   initialMessages,
   contextImagesB64,
+  initialSessionId,
 }: HomeworkChatProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // If initialMessages change (e.g. switching history items), reset messages
+  // When switching history items: restore messages AND session ID from DB (not reset to null)
   useEffect(() => {
     setMessages(initialMessages ?? []);
-    setSessionId(null);
+    setSessionId(initialSessionId ?? null);
   }, [submissionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const saveMessages = async (msgs: ChatMessage[]) => {
+  const saveMessages = async (msgs: ChatMessage[], newChatSessionId?: string) => {
     if (!submissionId) return;
     try {
-      await updateHomeworkChat(submissionId, msgs);
+      await updateHomeworkChat(submissionId, msgs, newChatSessionId);
     } catch {
       // silently ignore — chat saving is best-effort
     }
@@ -135,8 +137,9 @@ export function HomeworkChat({
               const finalMsg: ChatMessage = { role: "assistant", content: lastAssistant.content };
               setMessages((prev) => {
                 const updated = [...prev.slice(0, -1), finalMsg];
-                // Save updated messages to submission DB (best-effort)
-                saveMessages([...updatedWithUser, finalMsg]);
+                // Save updated messages + session ID to submission DB (best-effort)
+                // Pass newSessionId on first completion so it gets persisted for future page loads
+                saveMessages([...updatedWithUser, finalMsg], newSessionId || undefined);
                 return updated;
               });
             }

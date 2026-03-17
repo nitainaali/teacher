@@ -420,6 +420,7 @@ export function HomeworkPage() {
             submissionId={selectedHistory.id}
             initialMessages={selectedHistory.chat_messages ?? undefined}
             contextImagesB64={selectedHistory.images_b64 ?? undefined}
+            initialSessionId={selectedHistory.chat_session_id ?? undefined}
           />
         )}
       </div>
