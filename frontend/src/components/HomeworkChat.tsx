@@ -181,7 +181,7 @@ export function HomeworkChat({
               {msg.role === "assistant" ? (
                 <MarkdownContent content={msg.content} />
               ) : (
-                <p>{msg.content}</p>
+                <p dir="auto">{msg.content}</p>
               )}
               {streaming && i === messages.length - 1 && msg.role === "assistant" && (
                 <span className="inline-block w-1.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
