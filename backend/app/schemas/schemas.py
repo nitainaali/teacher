@@ -278,6 +278,7 @@ class ChatMessageRequest(BaseModel):
     language: str = "en"
     source: Optional[str] = None  # "homework_chat" → uses separate event_type
     images: Optional[List[str]] = None  # base64-encoded images (homework chat first message)
+    context_seed: Optional[str] = None  # analysis text to seed new homework/exam follow-up sessions
 
 
 class TopicSummaryRequest(BaseModel):
@@ -348,6 +349,17 @@ class ExamAnalysisRecordOut(BaseModel):
     reference_exam_name: Optional[str]
     student_exam_name: Optional[str]
     analysis_result: str
+    chat_session_id: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Unified History ────────────────────────────────────────────────────────────
+
+class UnifiedHistoryItem(BaseModel):
+    id: str
+    type: str  # "general" | "homework" | "exam"
+    title: str
+    created_at: datetime
+    metadata_: Optional[dict] = None

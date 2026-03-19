@@ -1,8 +1,9 @@
 import base64
 import re
+import uuid
 from typing import Optional, List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -25,6 +26,7 @@ def _extract_score(text: str) -> Optional[str]:
 
 
 async def _save_submission(
+    submission_id: str,
     course_id: Optional[str],
     user_description: Optional[str],
     filenames: List[str],
@@ -44,6 +46,7 @@ async def _save_submission(
 
     async with AsyncSessionLocal() as db:
         sub = HomeworkSubmission(
+            id=submission_id,
             course_id=course_id,
             user_description=user_description,
             filenames=filenames,
@@ -57,7 +60,6 @@ async def _save_submission(
 
 @router.post("/check")
 async def check_homework(
-    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     course_id: Optional[str] = Form(None),
     knowledge_mode: str = Form("general"),
@@ -88,6 +90,9 @@ async def check_homework(
         else:
             images_b64.append(base64.b64encode(content).decode())
 
+    # Pre-generate submission ID so frontend can reference it via SSE marker
+    submission_id = str(uuid.uuid4())
+
     async def event_generator():
         collected: list[str] = []
         success = False
@@ -102,16 +107,17 @@ async def check_homework(
             success = True
         except Exception as e:
             yield f"data: [ERROR:{str(e)[:200]}]\n\n"
-        finally:
-            yield "data: [DONE]\n\n"
 
-        # Schedule save after stream is fully consumed (normal path only)
+        # Save synchronously BEFORE emitting SUBMISSION_ID so the record exists
+        # in DB by the time the frontend tries to fetch it.
         if success:
             full_result = "".join(collected)
             if full_result.strip():
-                background_tasks.add_task(
-                    _save_submission, course_id, user_description, filenames, full_result, images_b64
+                await _save_submission(
+                    submission_id, course_id, user_description, filenames, full_result, images_b64
                 )
+                yield f"data: [SUBMISSION_ID:{submission_id}]\n\n"
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

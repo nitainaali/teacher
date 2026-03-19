@@ -1,7 +1,7 @@
 import base64
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
@@ -33,6 +33,7 @@ def _file_to_base64_images(file_path: str) -> list[str]:
 
 
 async def _save_analysis_record(
+    record_id: str,
     course_id: Optional[str],
     reference_exam_name: Optional[str],
     student_exam_name: Optional[str],
@@ -41,6 +42,7 @@ async def _save_analysis_record(
     """Save exam analysis in a new DB session (called after streaming)."""
     async with AsyncSessionLocal() as db:
         record = ExamAnalysisRecord(
+            id=record_id,
             course_id=course_id,
             reference_exam_name=reference_exam_name,
             student_exam_name=student_exam_name,
@@ -134,6 +136,9 @@ async def analyze_exam(
     student_exam_name = doc.original_name
     course_id = exam.course_id
 
+    # Pre-generate record ID so frontend can reference it via SSE marker
+    record_id = str(uuid.uuid4())
+
     async def event_generator():
         collected: list[str] = []
         success = False
@@ -153,6 +158,8 @@ async def analyze_exam(
         except Exception as e:
             yield f"data: [ERROR: {str(e)[:100]}]\n\n"
         finally:
+            if success:
+                yield f"data: [RECORD_ID:{record_id}]\n\n"
             yield "data: [DONE]\n\n"
 
         # Save analysis record after streaming completes (normal path only)
@@ -160,7 +167,7 @@ async def analyze_exam(
             full_result = "".join(collected)
             if full_result.strip():
                 background_tasks.add_task(
-                    _save_analysis_record, course_id, reference_name, student_exam_name, full_result
+                    _save_analysis_record, record_id, course_id, reference_name, student_exam_name, full_result
                 )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -186,6 +193,25 @@ async def get_exam_analysis(record_id: str, db: AsyncSession = Depends(get_db)):
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(404, "Analysis record not found")
+    return record
+
+
+@router.patch("/analyses/{record_id}", response_model=ExamAnalysisRecordOut)
+async def update_exam_analysis(
+    record_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(404, "Analysis record not found")
+    if "chat_session_id" in body:
+        record.chat_session_id = body["chat_session_id"]
+    await db.commit()
+    await db.refresh(record)
     return record
 
 

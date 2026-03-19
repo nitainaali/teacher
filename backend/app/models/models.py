@@ -24,6 +24,7 @@ class Course(Base):
     color: Mapped[str | None] = mapped_column(String(20))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    topics_grouped: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     documents: Mapped[list["Document"]] = relationship("Document", back_populates="course")
     flashcards: Mapped[list["Flashcard"]] = relationship("Flashcard", back_populates="course")
@@ -212,6 +213,7 @@ class ChatSession(Base):
     source: Mapped[str] = mapped_column(String(50), default="chat")  # "chat" | "homework_chat"
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    images_b64: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     course: Mapped["Course | None"] = relationship("Course", back_populates="chat_sessions")
     messages: Mapped[list["ChatMessage"]] = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at")
@@ -266,6 +268,7 @@ class ExamAnalysisRecord(Base):
     reference_exam_name: Mapped[str | None] = mapped_column(String)
     student_exam_name: Mapped[str | None] = mapped_column(String)
     analysis_result: Mapped[str] = mapped_column(Text, nullable=False)
+    chat_session_id: Mapped[str | None] = mapped_column(String, nullable=True)  # links to ChatSession for follow-up chat
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course | None"] = relationship("Course", back_populates="exam_analysis_records")

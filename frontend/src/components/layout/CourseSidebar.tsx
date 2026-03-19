@@ -59,16 +59,6 @@ export function CourseSidebar() {
       path: `/course/${courseId}/chat`,
     },
     {
-      icon: "📝",
-      key: "sidebar.homework",
-      path: `/course/${courseId}/homework`,
-    },
-    {
-      icon: "📊",
-      key: "sidebar.exam",
-      path: `/course/${courseId}/exam`,
-    },
-    {
       icon: "🔍",
       key: "sidebar.diagnosis",
       path: `/course/${courseId}/diagnosis`,

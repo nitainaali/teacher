@@ -9,7 +9,7 @@ from sqlalchemy import select
 import anthropic
 
 from app.core.config import settings
-from app.models.models import Document, DocumentChunk
+from app.models.models import Document, DocumentChunk, Course, LearningEvent
 from app.services.embeddings import embed_texts, chunk_text
 
 
@@ -53,6 +53,8 @@ async def process_document(document_id: str, db: AsyncSession) -> None:
             await _extract_exam_topics(db, doc)
         else:
             await _extract_document_topics(db, doc)
+            if doc.course_id:
+                await _refresh_course_topic_groups(db, doc.course_id)
 
     except Exception as e:
         doc.processing_status = "error"
@@ -138,6 +140,66 @@ async def _extract_document_topics(db: AsyncSession, doc: Document) -> None:
             await db.commit()
     except Exception:
         pass
+
+
+async def _refresh_course_topic_groups(db: AsyncSession, course_id: str) -> None:
+    """Merge all document topics for a course into a canonical list via Claude Haiku.
+
+    Stored in courses.topics_grouped. Called after every non-exam document upload and
+    lazily from the diagnosis endpoint when topics_grouped is null.
+    """
+    import json, re as _re
+    try:
+        result = await db.execute(
+            select(LearningEvent.topic)
+            .where(
+                LearningEvent.event_type == "document_topic",
+                LearningEvent.course_id == course_id,
+                LearningEvent.topic.isnot(None),
+            )
+            .distinct()
+        )
+        raw_topics = [row[0] for row in result.all()]
+        if not raw_topics:
+            return
+
+        course_result = await db.execute(select(Course).where(Course.id == course_id))
+        course = course_result.scalar_one_or_none()
+        if not course:
+            return
+
+        # If few enough topics, no LLM needed — store as-is
+        if len(raw_topics) <= 10:
+            course.topics_grouped = raw_topics
+            await db.commit()
+            return
+
+        # Call Haiku to semantically merge topics
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        topics_text = "\n".join(f"- {t}" for t in raw_topics)
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "You have a list of fine-grained topics extracted from course documents.\n"
+                    "Merge duplicate, overlapping, or redundant topics into a concise canonical list.\n"
+                    "Return 8–15 canonical topics in Hebrew (עברית), each 2–5 words.\n"
+                    "Respond with a JSON array only, no markdown.\n\n"
+                    f"Topics to merge:\n{topics_text}"
+                ),
+            }],
+        )
+        text = response.content[0].text
+        match = _re.search(r'\[.*\]', text, _re.DOTALL)
+        if match:
+            merged = [t for t in json.loads(match.group()) if isinstance(t, str) and t.strip()]
+            if merged:
+                course.topics_grouped = merged
+                await db.commit()
+    except Exception:
+        pass  # Silent failure — diagnosis falls back to raw topics
 
 
 def _text_looks_valid(text: str) -> bool:

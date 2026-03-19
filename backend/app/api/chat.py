@@ -25,6 +25,7 @@ async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_
                 language=data.language,
                 source=data.source,
                 images=data.images,
+                context_seed=data.context_seed,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
@@ -49,7 +50,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     )
     result = await db.execute(
         select(ChatSession, first_msg_subq.label("first_message"))
-        .where(ChatSession.source != "homework_chat")  # hide homework follow-up chats
+        .where(ChatSession.source.notin_(["homework_chat", "exam_chat"]))  # hide follow-up chats
         .order_by(ChatSession.updated_at.desc())
     )
     rows = result.all()

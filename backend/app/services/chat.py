@@ -1,6 +1,6 @@
 from typing import Optional, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.models.models import ChatSession, ChatMessage
 from app.services import claude, rag, student_intelligence
@@ -22,6 +22,7 @@ async def get_or_create_session(
     session_id: Optional[str],
     course_id: Optional[str],
     knowledge_mode: str,
+    source: str = "chat",
 ) -> ChatSession:
     if session_id:
         result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
@@ -29,7 +30,7 @@ async def get_or_create_session(
         if session:
             return session
 
-    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode)
+    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode, source=source)
     db.add(session)
     await db.flush()
     return session
@@ -44,10 +45,36 @@ async def send_message_stream(
     language: str = "en",
     source: Optional[str] = None,
     images: Optional[list[str]] = None,
+    context_seed: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    session = await get_or_create_session(db, session_id, course_id, knowledge_mode)
+    session = await get_or_create_session(db, session_id, course_id, knowledge_mode, source=source or "chat")
 
-    # Persist user message (text only — images are not stored in DB)
+    # If a context_seed is provided, insert it as the first assistant message in a
+    # brand-new session so that all follow-up turns have the full analysis in context.
+    if context_seed and context_seed.strip():
+        count_result = await db.execute(
+            select(func.count()).where(ChatMessage.session_id == session.id)
+        )
+        existing_count = count_result.scalar() or 0
+        if existing_count == 0:
+            seed_msg = ChatMessage(
+                session_id=session.id,
+                role="assistant",
+                content=context_seed.strip(),
+            )
+            db.add(seed_msg)
+            await db.flush()
+
+    # Persist session images (first time only) so all follow-up turns retain visual context.
+    if images and session.images_b64 is None:
+        capped = images[:3]
+        total_len = sum(len(b) for b in capped)
+        if total_len > 6_000_000:
+            capped = images[:1]  # Fallback: keep only first image if total is too large
+        session.images_b64 = capped
+        await db.flush()
+
+    # Persist user message (text only — images are stored at session level, not per message)
     user_msg = ChatMessage(session_id=session.id, role="user", content=message)
     db.add(user_msg)
     await db.flush()
@@ -61,15 +88,16 @@ async def send_message_stream(
     all_messages = result.scalars().all()
 
     # Build messages payload.
-    # If images are provided, inject them into the last (current) user turn as multimodal content.
-    # This lets Claude see the homework images on the first follow-up turn.
-    # Subsequent turns rely on Claude's previous textual response containing the image analysis.
+    # Session images (if any) are injected into the FIRST user turn so Claude retains
+    # visual context across all follow-up turns — not just the current one.
+    session_images = session.images_b64 or []
+    first_user_injected = False
     messages_payload = []
-    for i, m in enumerate(all_messages):
-        is_last_user = (i == len(all_messages) - 1) and m.role == "user"
-        if is_last_user and images:
+    for m in all_messages:
+        if m.role == "user" and not first_user_injected and session_images:
+            first_user_injected = True
             content: list = []
-            for img_b64 in images:
+            for img_b64 in session_images:
                 content.append({
                     "type": "image",
                     "source": {

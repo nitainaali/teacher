@@ -49,7 +49,7 @@
     "summary": "Topic Summary",
     "flashcards": "Flashcards",
     "quizzes": "Quizzes",
-    "chat": "Ask a Question",
+    "chat": "Ask the Chat",
     "homework": "Homework Help",
     "exam": "Exam Analysis",
     "diagnosis": "Learning Diagnosis"
@@ -370,5 +370,30 @@
       "intuitive": "Intuitive"
     },
     "saved": "Profile saved!"
+  },
+  "unifiedChat": {
+    "title": "Ask the Chat",
+    "newConversation": "New Conversation",
+    "filterAll": "All",
+    "filterGeneral": "Questions",
+    "filterHomework": "Homework",
+    "filterExam": "Exams",
+    "modeGeneral": "General Question",
+    "modeHomework": "Homework Help",
+    "modeExam": "Analyze Exam",
+    "sendGeneral": "Ask",
+    "sendHomework": "Check / Help",
+    "sendExam": "Analyze",
+    "attachExamFirst": "Please attach an exam file first",
+    "attachHomeworkFirst": "Please attach a homework file first",
+    "tagGeneral": "Question",
+    "tagHomework": "Homework",
+    "tagExam": "Exam",
+    "noHistory": "No conversations yet",
+    "examGuidancePlaceholder": "Analysis guidance (optional)...",
+    "examExperiencePlaceholder": "How did the exam go? (optional)...",
+    "examRefFile": "Reference exam (optional)",
+    "inputPlaceholder": "Type a message...",
+    "examWelcome": "**Exam Analysis** 📋\n\nAttach your exam file below, then in the text box you can add:\n- **Analysis guidance** – any specific aspects to focus on\n- **Your experience** – how did the exam go?\n\nBoth are optional. Click **Analyze** when ready."
   }
 }

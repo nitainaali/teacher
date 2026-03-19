@@ -9,6 +9,7 @@ export interface ExamAnalysisRecord {
   reference_exam_name: string | null;
   student_exam_name: string | null;
   analysis_result: string;
+  chat_session_id: string | null;
   created_at: string;
 }
 
@@ -25,6 +26,9 @@ export const getExamAnalysis = (id: string) =>
 
 export const deleteExamAnalysis = (id: string) =>
   client.delete(`/api/exams/analyses/${id}`);
+
+export const updateExamAnalysis = (id: string, data: { chat_session_id?: string }) =>
+  client.patch<ExamAnalysisRecord>(`/api/exams/analyses/${id}`, data).then((r) => r.data);
 
 export const uploadExam = (
   file: File,
@@ -88,6 +92,7 @@ export async function* streamExamAnalysis(
         if (chunk.startsWith("[ERROR:")) {
           throw new Error(chunk.slice(7, -1));
         }
+        if (chunk.startsWith("[RECORD_ID:")) continue;
         if (chunk) yield chunk;
       }
     }

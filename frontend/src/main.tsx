@@ -13,9 +13,7 @@ import { TopicSummaryPage } from "./pages/TopicSummaryPage";
 import { FlashcardsPage } from "./pages/FlashcardsPage";
 import { QuizzesPage } from "./pages/QuizzesPage";
 import { QuizDetailPage } from "./pages/QuizDetailPage";
-import { ChatPage } from "./pages/ChatPage";
-import { HomeworkPage } from "./pages/HomeworkPage";
-import { ExamAnalysisPage } from "./pages/ExamAnalysisPage";
+import { UnifiedChatPage } from "./pages/UnifiedChatPage";
 import { DiagnosisPage } from "./pages/DiagnosisPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -37,9 +35,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="learning/flashcards" element={<FlashcardsPage />} />
             <Route path="learning/quizzes" element={<QuizzesPage />} />
             <Route path="learning/quizzes/:id" element={<QuizDetailPage />} />
-            <Route path="chat" element={<ChatPage />} />
-            <Route path="homework" element={<HomeworkPage />} />
-            <Route path="exam" element={<ExamAnalysisPage />} />
+            <Route path="chat" element={<UnifiedChatPage />} />
+            {/* Redirect old homework/exam URLs to the unified chat page */}
+            <Route path="homework" element={<Navigate to="../chat" replace />} />
+            <Route path="exam" element={<Navigate to="../chat" replace />} />
             <Route path="diagnosis" element={<DiagnosisPage />} />
           </Route>
 

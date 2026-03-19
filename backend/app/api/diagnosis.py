@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.database import get_db
-from app.models.models import LearningEvent, QuizSession, HomeworkSubmission, ExamAnalysisRecord
+from app.models.models import LearningEvent, QuizSession, HomeworkSubmission, ExamAnalysisRecord, Course
 from app.schemas.schemas import DiagnosisData, DiagnosisStats, TopicKnowledge, ExamTopicWeight
 
 router = APIRouter(prefix="/api/diagnosis", tags=["diagnosis"])
@@ -68,22 +68,38 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
         exams_submitted=exams_submitted,
     )
 
-    # ── 2. Base topic list from document_topic events ────────────────────────
-    # Using document-extracted topics ensures only real course topics appear,
-    # not transient topics from chat sessions or homework questions.
+    # ── 2. Base topic list — use LLM-merged topics_grouped if available ───────
+    # For a specific course: check courses.topics_grouped (LLM-merged canonical list).
+    # If null, lazy-init by running the merge now and caching the result.
+    # Fallback to raw document_topic events if merge fails or no course_id.
 
-    doc_topic_q = (
-        select(LearningEvent.topic)
-        .where(
-            LearningEvent.event_type == "document_topic",
-            LearningEvent.topic.isnot(None),
-        )
-        .distinct()
-    )
+    document_topics: set[str] = set()
     if course_id:
-        doc_topic_q = doc_topic_q.where(LearningEvent.course_id == course_id)
-    doc_topic_rows = (await db.execute(doc_topic_q)).all()
-    document_topics: set[str] = {row[0] for row in doc_topic_rows}
+        from app.services.document_processor import _refresh_course_topic_groups
+        course_result = await db.execute(select(Course).where(Course.id == course_id))
+        course_obj = course_result.scalar_one_or_none()
+        if course_obj:
+            if course_obj.topics_grouped is None:
+                # Lazy init: merge now and cache for future loads
+                await _refresh_course_topic_groups(db, course_id)
+                await db.refresh(course_obj)
+            if course_obj.topics_grouped:
+                document_topics = set(course_obj.topics_grouped)
+
+    if not document_topics:
+        # Fallback: raw document_topic events (no course filter or merge failed/empty)
+        doc_topic_q = (
+            select(LearningEvent.topic)
+            .where(
+                LearningEvent.event_type == "document_topic",
+                LearningEvent.topic.isnot(None),
+            )
+            .distinct()
+        )
+        if course_id:
+            doc_topic_q = doc_topic_q.where(LearningEvent.course_id == course_id)
+        doc_topic_rows = (await db.execute(doc_topic_q)).all()
+        document_topics = {row[0] for row in doc_topic_rows}
 
     # ── 3. Performance events for knowledge level ─────────────────────────────
 

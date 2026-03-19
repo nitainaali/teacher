@@ -49,7 +49,7 @@
     "summary": "סיכום נושאים",
     "flashcards": "כרטיסיות",
     "quizzes": "בחנים",
-    "chat": "שאל שאלה",
+    "chat": "שאל את הצ'אט",
     "homework": "עזרה במטלות",
     "exam": "ניתוח מבחן",
     "diagnosis": "אבחון מצב לימודי"
@@ -370,5 +370,30 @@
       "intuitive": "אינטואיטיבי"
     },
     "saved": "הפרופיל נשמר!"
+  },
+  "unifiedChat": {
+    "title": "שאל את הצ'אט",
+    "newConversation": "שיחה חדשה",
+    "filterAll": "הכל",
+    "filterGeneral": "שאלות",
+    "filterHomework": "מטלות",
+    "filterExam": "מבחנים",
+    "modeGeneral": "שאלה כללית",
+    "modeHomework": "עזרה במטלה",
+    "modeExam": "נתח מבחן",
+    "sendGeneral": "שאל",
+    "sendHomework": "בדוק / עזור",
+    "sendExam": "נתח",
+    "attachExamFirst": "אנא צרף קובץ מבחן תחילה",
+    "attachHomeworkFirst": "אנא צרף קובץ מטלה תחילה",
+    "tagGeneral": "שאלה",
+    "tagHomework": "מטלה",
+    "tagExam": "מבחן",
+    "noHistory": "אין שיחות עדיין",
+    "examGuidancePlaceholder": "הנחיות לניתוח (אופציונלי)...",
+    "examExperiencePlaceholder": "איך הלך המבחן? (אופציונלי)...",
+    "examRefFile": "מבחן עזר (אופציונלי)",
+    "inputPlaceholder": "הקלד הודעה...",
+    "examWelcome": "**ניתוח מבחן** 📋\n\nצרף את קובץ המבחן למטה, ובתיבת הטקסט תוכל להוסיף:\n- **הנחיות לניתוח** – היבטים ספציפיים שחשוב להתמקד בהם\n- **החוויה שלך** – איך הלך המבחן?\n\nשניהם אופציונליים. לחץ **נתח** כשמוכן."
   }
 }
