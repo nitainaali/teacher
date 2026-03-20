@@ -1,5 +1,5 @@
 import client from "./client";
-import type { Flashcard } from "../types";
+import type { Flashcard, StudyMode, StudyIntent, StudySession, NextCardResponse } from "../types";
 
 export interface FlashcardDeck {
   id: string;
@@ -55,6 +55,10 @@ export const renameDeck = (deckId: string, name: string) =>
 export const deleteDeck = (deckId: string) =>
   client.delete(`/api/flashcards/decks/${deckId}`);
 
+export const resetDeck = (deckId: string) =>
+  client.post<{ status: string; deck_id: string }>(`/api/flashcards/decks/${deckId}/reset`).then((r) => r.data);
+
+/** Legacy single-card review (no session tracking) */
 export const reviewFlashcard = (id: string, quality: number) =>
   client.post<Flashcard>(`/api/flashcards/${id}/review`, { quality }).then((r) => r.data);
 
@@ -63,3 +67,46 @@ export const updateFlashcard = (id: string, front: string, back: string) =>
 
 export const deleteFlashcard = (id: string) =>
   client.delete(`/api/flashcards/${id}`);
+
+// ── Session API ───────────────────────────────────────────────────────────────
+
+export type SessionType = "normal" | "one_time_all" | "one_time_learning";
+
+export const createSession = (
+  courseId: string,
+  deckId: string | null,
+  mode: StudyMode,
+  intent: StudyIntent,
+  topicFilter?: string,
+  sessionType: SessionType = "normal",
+) =>
+  client
+    .post<StudySession>("/api/flashcards/sessions", {
+      course_id: courseId,
+      deck_id: deckId,
+      topic_filter: topicFilter ?? null,
+      mode,
+      intent,
+      session_type: sessionType,
+    })
+    .then((r) => r.data);
+
+export const getNextCard = (sessionId: string) =>
+  client.get<NextCardResponse>(`/api/flashcards/sessions/${sessionId}/next`).then((r) => r.data);
+
+export const sessionReviewCard = (
+  sessionId: string,
+  cardId: string,
+  quality: number,
+  responseTimeMs?: number,
+) =>
+  client
+    .post<Flashcard>(`/api/flashcards/sessions/${sessionId}/review`, {
+      card_id: cardId,
+      quality,
+      response_time_ms: responseTimeMs ?? null,
+    })
+    .then((r) => r.data);
+
+export const endSession = (sessionId: string) =>
+  client.post<StudySession>(`/api/flashcards/sessions/${sessionId}/end`).then((r) => r.data);

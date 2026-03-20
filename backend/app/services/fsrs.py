@@ -5,6 +5,7 @@ Reference: https://github.com/open-spaced-repetition/fsrs4anki
 Grade mapping: 1=Again, 2=Hard, 3=Good, 4=Easy
 Frontend quality mapping: 0=Again → grade 1, 1=Hard → grade 2, 2=Good → grade 3, 3=Easy → grade 4
 """
+import math
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Tuple
 
@@ -18,6 +19,7 @@ W = [
 DECAY = -0.5
 FACTOR = 0.9 ** (1 / DECAY) - 1
 REQUEST_RETENTION = 0.9
+INTERVAL_MULTIPLIER = 0.5  # shorten all FSRS review-state intervals
 
 
 def _forgetting_curve(elapsed_days: float, stability: float) -> float:
@@ -34,9 +36,9 @@ def _stability_after_success(
     hard_penalty = W[15] if grade == 2 else 1.0
     easy_bonus = W[16] if grade == 4 else 1.0
     return stability * (
-        pow(10, W[8] * (11 - difficulty))
-        * pow(max(retrievability, 0.001), -W[9])
-        * (pow(W[10] + 1, W[11]) - 1)
+        math.exp(W[8]) * (11 - difficulty)
+        * pow(max(stability, 0.001), -W[9])
+        * (math.exp((1 - retrievability) * W[10]) - 1)
         * hard_penalty
         * easy_bonus
         + 1
@@ -51,7 +53,7 @@ def _stability_after_failure(
         W[11]
         * pow(max(difficulty, 0.001), -W[12])
         * (pow(max(stability + 1, 0.001), W[13]) - 1)
-        * pow(max(retrievability, 0.001), W[14])
+        * math.exp((1 - retrievability) * W[14])
     )
 
 
@@ -111,7 +113,7 @@ def fsrs_next(
             interval = 1
         else:
             new_state = "review"
-            interval = _interval_from_stability(new_s)
+            interval = max(1, round(_interval_from_stability(new_s) * INTERVAL_MULTIPLIER))
     else:
         retrievability = _forgetting_curve(elapsed_days, stability)
         new_d = _next_difficulty(difficulty if difficulty > 0 else 5.0, grade)
@@ -125,7 +127,7 @@ def fsrs_next(
             new_s = _stability_after_success(stability, difficulty if difficulty > 0 else 5.0, retrievability, grade)
             new_s = max(new_s, 0.1)
             new_state = "review"
-            interval = _interval_from_stability(new_s)
+            interval = max(1, round(_interval_from_stability(new_s) * INTERVAL_MULTIPLIER))
 
     next_review = date.today() + timedelta(days=interval)
     return new_s, new_d, interval, new_state, next_review
@@ -164,12 +166,8 @@ def fsrs_learning_step(
     steps = LEARNING_STEPS_MINUTES
 
     if grade == 4:
-        # Easy — graduate immediately to review with FSRS interval
-        grad_stability = stability if stability > 0 else _initial_stability(4)
-        grad_difficulty = difficulty if difficulty > 0 else _initial_difficulty(4)
-        interval = _interval_from_stability(grad_stability)
-        next_date = date.today() + timedelta(days=interval)
-        return None, "review", None, next_date, interval
+        # Easy — graduate immediately with fixed 1-day interval (not FSRS ~15d)
+        return None, "review", None, date.today() + timedelta(days=1), 1
 
     if grade in (1, 2):
         # Again / Hard — go to step 0 (first step, 1 minute)

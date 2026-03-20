@@ -30,6 +30,7 @@ class Course(Base):
     flashcards: Mapped[list["Flashcard"]] = relationship("Flashcard", back_populates="course")
     flashcard_decks: Mapped[list["FlashcardDeck"]] = relationship("FlashcardDeck", back_populates="course")
     quiz_sessions: Mapped[list["QuizSession"]] = relationship("QuizSession", back_populates="course")
+    study_sessions: Mapped[list["StudySession"]] = relationship("StudySession")
     exam_uploads: Mapped[list["ExamUpload"]] = relationship("ExamUpload", back_populates="course")
     learning_events: Mapped[list["LearningEvent"]] = relationship("LearningEvent", back_populates="course")
     chat_sessions: Mapped[list["ChatSession"]] = relationship("ChatSession", back_populates="course")
@@ -109,11 +110,74 @@ class Flashcard(Base):
     # Learning steps: sub-day intervals before graduating to long-term review
     learning_step: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     next_review_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # SRS session engine tracking fields
+    review_count: Mapped[int] = mapped_column(Integer, default=0)         # total reviews completed
+    lapse_count: Mapped[int] = mapped_column(Integer, default=0)           # times forgotten (Again on review/relearning)
+    retrievability_estimate: Mapped[float] = mapped_column(Float, default=0.0)  # R at last review
+    last_rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1-4
+    first_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     course: Mapped["Course"] = relationship("Course", back_populates="flashcards")
     source_document: Mapped["Document | None"] = relationship("Document", back_populates="flashcards")
     deck: Mapped["FlashcardDeck | None"] = relationship("FlashcardDeck", back_populates="cards")
+    review_logs: Mapped[list["ReviewLog"]] = relationship("ReviewLog", back_populates="card")
+
+
+class StudySession(Base):
+    """Tracks a single flashcard study session with mode and intent."""
+    __tablename__ = "study_sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    deck_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("flashcard_decks.id", ondelete="SET NULL"), nullable=True)
+    topic_filter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Study mode: ANKI_LIKE | COVERAGE_FIRST | HYBRID
+    mode: Mapped[str] = mapped_column(String(20), nullable=False, default="HYBRID")
+    # Session intent preset: QUICK_REFRESH | NORMAL_STUDY | DEEP_MEMORIZATION
+    intent: Mapped[str] = mapped_column(String(30), nullable=False, default="NORMAL_STUDY")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    target_duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    # Session stats
+    cards_seen_count: Mapped[int] = mapped_column(Integer, default=0)
+    new_cards_seen_count: Mapped[int] = mapped_column(Integer, default=0)
+    review_cards_seen_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_cards_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Policy engine state
+    last_card_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # for immediate-repeat penalty
+    card_exposures: Mapped[dict] = mapped_column(JSONB, default=dict)  # {card_id: exposure_count}
+    # Session type: normal | one_time_all | one_time_learning (dry-run modes)
+    session_type: Mapped[str] = mapped_column(String(30), nullable=False, server_default="normal")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course"] = relationship("Course")
+    review_logs: Mapped[list["ReviewLog"]] = relationship("ReviewLog", back_populates="session")
+
+
+class ReviewLog(Base):
+    """Immutable log of every card review — used for analytics and future optimizer training."""
+    __tablename__ = "review_logs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    session_id: Mapped[str] = mapped_column(String, ForeignKey("study_sessions.id", ondelete="CASCADE"))
+    card_id: Mapped[str] = mapped_column(String, ForeignKey("flashcards.id", ondelete="CASCADE"))
+    course_id: Mapped[str] = mapped_column(String, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1=Again, 2=Hard, 3=Good, 4=Easy
+    previous_state: Mapped[Optional[str]] = mapped_column(String(20))
+    new_state: Mapped[Optional[str]] = mapped_column(String(20))
+    previous_stability: Mapped[float] = mapped_column(Float, default=0.0)
+    new_stability: Mapped[float] = mapped_column(Float, default=0.0)
+    previous_difficulty: Mapped[float] = mapped_column(Float, default=0.0)
+    new_difficulty: Mapped[float] = mapped_column(Float, default=0.0)
+    previous_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    new_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    elapsed_days: Mapped[float] = mapped_column(Float, default=0.0)
+    mode_used: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    session: Mapped["StudySession"] = relationship("StudySession", back_populates="review_logs")
+    card: Mapped["Flashcard"] = relationship("Flashcard", back_populates="review_logs")
 
 
 class QuizSession(Base):

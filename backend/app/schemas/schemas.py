@@ -90,6 +90,14 @@ class FlashcardOut(BaseModel):
     stability: float = 0.0
     difficulty_fsrs: float = 0.3
     fsrs_state: str = "new"
+    learning_step: Optional[int] = None
+    next_review_at: Optional[datetime] = None
+    # SRS session engine fields
+    review_count: int = 0
+    lapse_count: int = 0
+    retrievability_estimate: float = 0.0
+    last_rating: Optional[int] = None
+    first_seen_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -97,6 +105,55 @@ class FlashcardOut(BaseModel):
 
 class FlashcardReviewRequest(BaseModel):
     quality: int  # 0=Again, 1=Hard, 2=Good, 3=Easy
+
+
+# ── Study Sessions ─────────────────────────────────────────────────────────────
+
+class StudySessionCreate(BaseModel):
+    course_id: str
+    deck_id: Optional[str] = None
+    topic_filter: Optional[str] = None
+    mode: str = "HYBRID"   # ANKI_LIKE | COVERAGE_FIRST | HYBRID
+    intent: str = "NORMAL_STUDY"  # QUICK_REFRESH | NORMAL_STUDY | DEEP_MEMORIZATION
+    session_type: str = "normal"  # normal | one_time_all | one_time_learning
+
+
+class SessionStats(BaseModel):
+    cards_seen_count: int
+    new_cards_seen_count: int
+    review_cards_seen_count: int
+    failed_cards_count: int
+
+
+class StudySessionOut(BaseModel):
+    id: str
+    course_id: str
+    deck_id: Optional[str]
+    topic_filter: Optional[str]
+    mode: str
+    intent: str
+    session_type: str = "normal"
+    started_at: datetime
+    ended_at: Optional[datetime]
+    target_duration_minutes: int
+    cards_seen_count: int
+    new_cards_seen_count: int
+    review_cards_seen_count: int
+    failed_cards_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class NextCardResponse(BaseModel):
+    card: Optional[FlashcardOut]
+    cards_remaining_estimate: int
+    session_stats: SessionStats
+
+
+class SessionReviewRequest(BaseModel):
+    card_id: str
+    quality: int          # 0=Again, 1=Hard, 2=Good, 3=Easy
+    response_time_ms: Optional[int] = None  # optional timing data for future optimizer
 
 
 class FlashcardDeckOut(BaseModel):

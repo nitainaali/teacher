@@ -12,6 +12,9 @@ const REQUEST_RETENTION = 0.9;
 // Learning steps in minutes — must match backend LEARNING_STEPS_MINUTES
 const LEARNING_STEPS_MINUTES = [1, 10];
 
+// Must match backend INTERVAL_MULTIPLIER in srs.py
+const INTERVAL_MULTIPLIER = 0.5;
+
 // FSRS-4.5 default weights (must match backend W array)
 const W = [
   0.4072, 1.1829, 3.1262, 15.4722, 7.2102, 0.5316, 1.0651, 0.0589,
@@ -29,7 +32,7 @@ export interface PredictedIntervals {
 function calcReviewInterval(stability: number): number {
   if (stability <= 0) return 1;
   const raw = (stability / FACTOR) * (REQUEST_RETENTION ** (1 / DECAY) - 1);
-  return Math.max(1, Math.round(raw));
+  return Math.max(1, Math.round(raw * INTERVAL_MULTIPLIER));
 }
 
 function initialStability(grade: number): number {
@@ -40,9 +43,9 @@ function stabilityAfterSuccess(s: number, d: number, r: number, grade: number): 
   const hardPenalty = grade === 2 ? W[15] : 1.0;
   const easyBonus = grade === 4 ? W[16] : 1.0;
   return s * (
-    Math.pow(10, W[8] * (11 - d)) *
-    Math.pow(Math.max(r, 0.001), -W[9]) *
-    (Math.pow(W[10] + 1, W[11]) - 1) *
+    Math.exp(W[8]) * (11 - d) *
+    Math.pow(Math.max(s, 0.001), -W[9]) *
+    (Math.exp((1 - r) * W[10]) - 1) *
     hardPenalty *
     easyBonus +
     1
@@ -54,7 +57,7 @@ function stabilityAfterFailure(s: number, d: number, r: number): number {
     W[11] *
     Math.pow(Math.max(d, 0.001), -W[12]) *
     (Math.pow(Math.max(s + 1, 0.001), W[13]) - 1) *
-    Math.pow(Math.max(r, 0.001), W[14])
+    Math.exp((1 - r) * W[14])
   );
 }
 
@@ -92,7 +95,7 @@ function estimateIntervalForGrade(card: Flashcard, grade: number): number {
 }
 
 function formatMins(minutes: number): string {
-  return `${minutes}m`;
+  return `${minutes} min`;
 }
 
 function formatDays(days: number, t?: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -125,9 +128,8 @@ export function predictIntervals(card: Flashcard): PredictedIntervals {
       goodStr = formatDays(calcReviewInterval(gradS));
     }
 
-    // Easy → graduate immediately
-    const gradS = card.stability > 0 ? card.stability : initialStability(4);
-    const easyStr = formatDays(calcReviewInterval(gradS));
+    // Easy → graduate immediately with fixed 1-day interval
+    const easyStr = "1d";
 
     return { again: againStr, hard: hardStr, good: goodStr, easy: easyStr };
   }

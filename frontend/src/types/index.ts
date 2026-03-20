@@ -36,7 +36,45 @@ export interface Flashcard {
   fsrs_state: string;
   learning_step: number | null;
   next_review_at: string | null;
+  // SRS session engine fields
+  review_count: number;
+  lapse_count: number;
+  retrievability_estimate: number;
+  last_rating: number | null;
+  first_seen_at: string | null;
   created_at: string;
+}
+
+export type StudyMode = "ANKI_LIKE" | "COVERAGE_FIRST" | "HYBRID";
+export type StudyIntent = "QUICK_REFRESH" | "NORMAL_STUDY" | "DEEP_MEMORIZATION";
+
+export interface StudySession {
+  id: string;
+  course_id: string;
+  deck_id: string | null;
+  topic_filter: string | null;
+  mode: StudyMode;
+  intent: StudyIntent;
+  started_at: string;
+  ended_at: string | null;
+  target_duration_minutes: number;
+  cards_seen_count: number;
+  new_cards_seen_count: number;
+  review_cards_seen_count: number;
+  failed_cards_count: number;
+}
+
+export interface SessionStats {
+  cards_seen_count: number;
+  new_cards_seen_count: number;
+  review_cards_seen_count: number;
+  failed_cards_count: number;
+}
+
+export interface NextCardResponse {
+  card: Flashcard | null;
+  cards_remaining_estimate: number;
+  session_stats: SessionStats;
 }
 
 export interface QuizSession {
