@@ -11,6 +11,7 @@ import {
   copyDocumentToSharedCourse,
   updateSharedDocument,
   retrySharedDocument,
+  deleteSharedDocument,
 } from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
 import { useUser } from "../context/UserContext";
@@ -88,6 +89,7 @@ export function KnowledgePage() {
   const [creatingLib, setCreatingLib] = useState(false);
 
   // Import shared doc + per-doc actions
+  const [deletingSharedDocId, setDeletingSharedDocId] = useState<string | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importingAllId, setImportingAllId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -325,6 +327,21 @@ export function KnowledgePage() {
     } catch { /* silently fail */ }
   };
 
+  const handleDeleteSharedDoc = async (sharedCourseId: string, docId: string) => {
+    setDeletingSharedDocId(docId);
+    try {
+      await deleteSharedDocument(sharedCourseId, docId);
+      setSharedCourses((prev) =>
+        prev.map((sc) =>
+          sc.id === sharedCourseId
+            ? { ...sc, docs: (sc.docs ?? []).filter((d) => d.id !== docId) }
+            : sc
+        )
+      );
+    } catch { /* silently fail */ }
+    finally { setDeletingSharedDocId(null); }
+  };
+
   const handleImportAllFromShared = async (sc: SharedCourseWithDocs) => {
     if (!courseId) return;
     setImportingAllId(sc.id);
@@ -395,8 +412,8 @@ export function KnowledgePage() {
                 : "border-gray-600 hover:border-gray-500 hover:bg-gray-700/30",
             ].join(" ")}
           >
-            <div className="text-2xl mb-1">📁</div>
-            <p className="text-xs text-gray-400">{t("knowledge.dragDrop")}</p>
+            <div className="text-4xl mb-2">📁</div>
+            <p className="text-sm text-gray-400">{t("knowledge.dragDrop")}</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -489,7 +506,7 @@ export function KnowledgePage() {
           <button
             onClick={handleUpload}
             disabled={pendingCount === 0 || uploading || uploadAllDone}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg text-base font-semibold transition-colors"
           >
             {uploading
               ? t("knowledge.uploading")
@@ -737,6 +754,15 @@ export function KnowledgePage() {
                                         {retryingId === d.id ? "…" : "↺"}
                                       </button>
                                     )}
+                                    {/* Admin: delete doc */}
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => handleDeleteSharedDoc(sc.id, d.id)}
+                                        disabled={deletingSharedDocId === d.id}
+                                        title={t("common.delete")}
+                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-600 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50 text-xs leading-none"
+                                      >×</button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -822,22 +848,22 @@ export function KnowledgePage() {
                     ) : (
                       /* Normal doc row */
                       <div className="px-3 py-2 flex items-center gap-2">
-                        <span className="text-sm select-none shrink-0">{imgFile ? "🖼️" : "📄"}</span>
+                        <span className="text-xs select-none shrink-0 text-gray-500">{imgFile ? "🖼️" : "📄"}</span>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium truncate">{doc.original_name}</p>
+                          <p className="text-white text-sm truncate">{doc.original_name}</p>
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                            <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border font-medium " + badgeColor}>
+                            <span className={"inline-flex items-center px-1 py-0 rounded-full text-[10px] border font-medium " + badgeColor}>
                               {t("knowledge.types." + type) || type}
                             </span>
-                            <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium " + statusColor}>
+                            <span className={"inline-flex items-center px-1 py-0 rounded-full text-[10px] font-medium " + statusColor}>
                               {t("knowledge.status." + doc.processing_status)}
                             </span>
                             {doc.processing_status === "done" &&
                              doc.metadata_?.scan_quality != null &&
                              doc.metadata_.scan_quality !== "good" && (
                               <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border bg-orange-900/30 text-orange-400 border-orange-700/30"
+                                className="inline-flex items-center gap-0.5 px-1 py-0 rounded-full text-[10px] border bg-orange-900/30 text-orange-400 border-orange-700/30"
                                 title={t("knowledge.scanWarningTooltip")}
                               >
                                 ⚠ {t("knowledge.scanWarning")}
