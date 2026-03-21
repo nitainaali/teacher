@@ -23,7 +23,8 @@
     "analyze": "נתח",
     "send": "שלח",
     "maxFileSize": "גודל קובץ מקסימלי: 40 MB",
-    "fileTooLarge": "הקובץ גדול מדי (מקסימום 40 MB)"
+    "fileTooLarge": "הקובץ גדול מדי (מקסימום 40 MB)",
+    "copy": "העתק"
   },
   "knowledgeMode": {
     "label": "מקור ידע",
@@ -448,23 +449,33 @@
     "admin": "מנהל",
     "createError": "שגיאה ביצירת משתמש"
   },
+  "auth": {
+    "logout": "התנתק"
+  },
   "sharedKnowledge": {
     "title": "ספריית ידע משותף",
     "tabLabel": "ספריה משותפת",
     "libraries": "ספריות",
     "noLibraries": "אין ספריות משותפות עדיין",
     "newLibrary": "ספריה חדשה",
+    "newLib": "ספריה חדשה",
     "libraryName": "שם הספריה",
     "libraryDescription": "תיאור (אופציונלי)",
     "deleteLibrary": "מחק ספריה",
-    "selectLibrary": "בחר ספריה מהרשימה לצפייה בקבצים",
-    "uploadDoc": "העלה מסמך",
-    "noDocs": "אין מסמכים בספריה זו עדיין",
+    "selectLibrary": "בחר ספריה…",
+    "uploadDoc": "העלה לספריה",
+    "noDocs": "אין מסמכים עדיין",
     "loadError": "שגיאה בטעינת ספריות",
     "createError": "שגיאה ביצירת ספריה",
     "deleteError": "שגיאה במחיקה",
     "uploadError": "שגיאה בהעלאה",
     "activeSources": "מקורות משותפים",
-    "activeSourcesHint": "כלול ספריות אלה בחיפושי RAG עבור קורס זה"
+    "activeSourcesHint": "כלול ספריות אלה בחיפושי RAG עבור קורס זה",
+    "activeLabel": "פעיל",
+    "sharedLibraries": "ספריות משותפות",
+    "alsoShareTo": "גם שתף ל:",
+    "copyToLibrary": "העתק לספריה",
+    "copiedSuccess": "הועתק לספריה המשותפת",
+    "copyError": "שגיאה בהעתקה"
   }
 }

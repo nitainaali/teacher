@@ -3,10 +3,18 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getDocuments, uploadDocument, deleteDocument } from "../api/documents";
 import { getCourse, updateActiveSharedCourses } from "../api/courses";
-import { getSharedCourses } from "../api/sharedKnowledge";
+import {
+  getSharedCourses,
+  getSharedDocuments,
+  uploadToSharedCourse,
+  createSharedCourse,
+  deleteSharedCourse,
+  copyDocumentToSharedCourse,
+} from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
+import { useUser } from "../context/UserContext";
 import type { Document } from "../types";
-import type { SharedCourse } from "../api/sharedKnowledge";
+import type { SharedCourse, SharedDocument } from "../api/sharedKnowledge";
 
 const DOC_TYPES = ["lecture", "summary", "exam", "transcript", "reference"] as const;
 type DocType = typeof DOC_TYPES[number];
@@ -38,9 +46,18 @@ function isImage(filename: string) {
   return /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(filename);
 }
 
+interface SharedCourseWithDocs extends SharedCourse {
+  docs?: SharedDocument[];
+  docsLoaded?: boolean;
+  docsOpen?: boolean;
+}
+
 export function KnowledgePage() {
   const { t } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
+  const { currentUser } = useUser();
+  const isAdmin = currentUser?.is_admin ?? false;
+
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadAllDone, setUploadAllDone] = useState(false);
@@ -51,21 +68,42 @@ export function KnowledgePage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Shared courses
-  const [sharedCourses, setSharedCourses] = useState<SharedCourse[]>([]);
+  // Shared courses state
+  const [sharedCourses, setSharedCourses] = useState<SharedCourseWithDocs[]>([]);
   const [activeSharedIds, setActiveSharedIds] = useState<string[]>([]);
   const [sharedPanelOpen, setSharedPanelOpen] = useState(false);
+
+  // "Also share new uploads" state
+  const [shareNewFiles, setShareNewFiles] = useState(false);
+  const [shareTarget, setShareTarget] = useState<string>("");
+
+  // Copy existing doc to shared library
+  const [copyingDocId, setCopyingDocId] = useState<string | null>(null);
+  const [copyTargets, setCopyTargets] = useState<Record<string, string>>({});
+
+  // Admin: create new shared library
+  const [showCreateLib, setShowCreateLib] = useState(false);
+  const [newLibName, setNewLibName] = useState("");
+  const [newLibDesc, setNewLibDesc] = useState("");
+  const [creatingLib, setCreatingLib] = useState(false);
+
+  // File input for shared library uploads
+  const sharedFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingToSharedId, setUploadingToSharedId] = useState<string | null>(null);
 
   const fetchDocs = () => {
     if (!courseId) return;
     getDocuments(courseId, "knowledge").then(setDocs);
   };
 
-  useEffect(() => { fetchDocs(); }, [courseId]);
+  const fetchSharedCourses = () => {
+    getSharedCourses()
+      .then((courses) => setSharedCourses(courses.map((c) => ({ ...c }))))
+      .catch(() => setSharedCourses([]));
+  };
 
-  useEffect(() => {
-    getSharedCourses().then(setSharedCourses).catch(() => setSharedCourses([]));
-  }, []);
+  useEffect(() => { fetchDocs(); }, [courseId]);
+  useEffect(() => { fetchSharedCourses(); }, []);
 
   useEffect(() => {
     if (!courseId) return;
@@ -83,9 +121,69 @@ export function KnowledgePage() {
     try {
       await updateActiveSharedCourses(courseId, next);
     } catch {
-      // revert on error
       setActiveSharedIds(activeSharedIds);
     }
+  };
+
+  const toggleDocsOpen = async (scId: string) => {
+    const sc = sharedCourses.find((s) => s.id === scId);
+    const willOpen = !sc?.docsOpen;
+    setSharedCourses((prev) =>
+      prev.map((s) => s.id === scId ? { ...s, docsOpen: willOpen } : s)
+    );
+    if (willOpen && !sc?.docsLoaded) {
+      try {
+        const loaded = await getSharedDocuments(scId);
+        setSharedCourses((prev) =>
+          prev.map((s) => s.id === scId ? { ...s, docs: loaded, docsLoaded: true } : s)
+        );
+      } catch { /* silently fail */ }
+    }
+  };
+
+  const refreshSharedDocs = async (scId: string) => {
+    try {
+      const loaded = await getSharedDocuments(scId);
+      setSharedCourses((prev) =>
+        prev.map((s) => s.id === scId ? { ...s, docs: loaded, docsLoaded: true } : s)
+      );
+    } catch { /* silently fail */ }
+  };
+
+  const handleSharedUpload = async (scId: string, files: FileList | null) => {
+    if (!files) return;
+    setUploadingToSharedId(scId);
+    for (const file of Array.from(files)) {
+      try {
+        await uploadToSharedCourse(scId, file);
+      } catch { /* silently fail per-file */ }
+    }
+    await refreshSharedDocs(scId);
+    setUploadingToSharedId(null);
+  };
+
+  const handleCreateLib = async () => {
+    if (!newLibName.trim()) return;
+    setCreatingLib(true);
+    try {
+      const created = await createSharedCourse({
+        name: newLibName.trim(),
+        description: newLibDesc.trim() || undefined,
+      });
+      setSharedCourses((prev) => [...prev, { ...created }]);
+      setShowCreateLib(false);
+      setNewLibName("");
+      setNewLibDesc("");
+    } catch { /* silently fail */ }
+    finally { setCreatingLib(false); }
+  };
+
+  const handleDeleteLib = async (scId: string) => {
+    try {
+      await deleteSharedCourse(scId);
+      setSharedCourses((prev) => prev.filter((s) => s.id !== scId));
+      setActiveSharedIds((prev) => prev.filter((id) => id !== scId));
+    } catch { /* silently fail */ }
   };
 
   const addFiles = (incoming: FileList | null) => {
@@ -125,6 +223,15 @@ export function KnowledgePage() {
       try {
         await uploadDocument(entry.file, courseId, docType);
         updateFileStatus(entry.file.name, "done");
+        // Also share to shared library if requested
+        if (shareNewFiles && shareTarget) {
+          try {
+            await uploadToSharedCourse(shareTarget, entry.file);
+            setSharedCourses((prev) =>
+              prev.map((s) => s.id === shareTarget ? { ...s, docsLoaded: false } : s)
+            );
+          } catch { /* ignore sharing failure */ }
+        }
       } catch (err: any) {
         if (err?.response?.status === 409) {
           updateFileStatus(entry.file.name, "duplicate");
@@ -155,6 +262,28 @@ export function KnowledgePage() {
     }
   };
 
+  const handleCopyToShared = async (docId: string) => {
+    const targetId = copyTargets[docId];
+    if (!targetId) return;
+    setCopyingDocId(docId);
+    try {
+      await copyDocumentToSharedCourse(targetId, docId);
+      setToast(t("sharedKnowledge.copiedSuccess"));
+      setSharedCourses((prev) =>
+        prev.map((s) => s.id === targetId ? { ...s, docsLoaded: false } : s)
+      );
+      setCopyTargets((prev) => { const n = { ...prev }; delete n[docId]; return n; });
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        setToast(t("knowledge.duplicate", { name: docs.find((d) => d.id === docId)?.original_name || "" }));
+      } else {
+        setToast(t("sharedKnowledge.copyError"));
+      }
+    } finally {
+      setCopyingDocId(null);
+    }
+  };
+
   const pendingCount = selectedFiles.filter((e) => e.status === "pending").length;
 
   return (
@@ -169,9 +298,8 @@ export function KnowledgePage() {
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
-      {/* Split layout: upload left, file list right */}
       <div className="flex gap-5 items-start">
-        {/* Left panel — Upload */}
+        {/* ── Left panel ── */}
         <div className="w-72 shrink-0 bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-4">
           <h3 className="text-sm font-semibold text-gray-300">{t("knowledge.addFile")}</h3>
 
@@ -183,7 +311,9 @@ export function KnowledgePage() {
             onClick={() => fileInputRef.current?.click()}
             className={[
               "border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors select-none",
-              dragging ? "border-blue-500 bg-blue-600/10" : "border-gray-600 hover:border-gray-500 hover:bg-gray-700/30",
+              dragging
+                ? "border-blue-500 bg-blue-600/10"
+                : "border-gray-600 hover:border-gray-500 hover:bg-gray-700/30",
             ].join(" ")}
           >
             <div className="text-2xl mb-1">📁</div>
@@ -210,11 +340,7 @@ export function KnowledgePage() {
                   duplicate: "text-yellow-400",
                 };
                 const statusIcons: Record<UploadStatus, string> = {
-                  pending: "○",
-                  uploading: "↑",
-                  done: "✓",
-                  error: "✗",
-                  duplicate: "⚠",
+                  pending: "○", uploading: "↑", done: "✓", error: "✗", duplicate: "⚠",
                 };
                 return (
                   <div
@@ -230,9 +356,7 @@ export function KnowledgePage() {
                         type="button"
                         onClick={() => removeFile(entry.file.name)}
                         className="text-gray-500 hover:text-red-400 text-xs shrink-0"
-                      >
-                        ×
-                      </button>
+                      >×</button>
                     )}
                   </div>
                 );
@@ -256,6 +380,33 @@ export function KnowledgePage() {
             </select>
           </div>
 
+          {/* "Also share to library" — shown only when files selected + shared courses exist */}
+          {selectedFiles.length > 0 && sharedCourses.length > 0 && (
+            <div className="space-y-1.5 bg-gray-700/30 rounded-lg p-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shareNewFiles}
+                  onChange={(e) => setShareNewFiles(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded accent-blue-500"
+                />
+                <span className="text-xs text-gray-300">{t("sharedKnowledge.alsoShareTo")}</span>
+              </label>
+              {shareNewFiles && (
+                <select
+                  value={shareTarget}
+                  onChange={(e) => setShareTarget(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">{t("sharedKnowledge.selectLibrary")}</option>
+                  {sharedCourses.map((sc) => (
+                    <option key={sc.id} value={sc.id}>{sc.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           <button
             onClick={handleUpload}
             disabled={pendingCount === 0 || uploading || uploadAllDone}
@@ -270,47 +421,171 @@ export function KnowledgePage() {
               : t("common.upload")}
           </button>
 
-          {/* Shared knowledge sources */}
-          {sharedCourses.length > 0 && (
-            <div className="border-t border-gray-700 pt-3">
-              <button
-                onClick={() => setSharedPanelOpen((v) => !v)}
-                className="w-full flex items-center justify-between text-xs font-semibold text-gray-400 hover:text-gray-200 transition-colors mb-1"
-              >
-                <span className="flex items-center gap-1.5">
-                  <span>🔗</span>
-                  <span>{t("sharedKnowledge.activeSources")}</span>
-                  {activeSharedIds.length > 0 && (
-                    <span className="bg-blue-600/30 text-blue-400 rounded-full px-1.5 py-0.5">
-                      {activeSharedIds.length}
-                    </span>
-                  )}
-                </span>
-                <span>{sharedPanelOpen ? "▾" : "▸"}</span>
-              </button>
-              {sharedPanelOpen && (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-gray-500">{t("sharedKnowledge.activeSourcesHint")}</p>
-                  {sharedCourses.map((sc) => (
-                    <label key={sc.id} className="flex items-center gap-2 cursor-pointer group">
+          {/* ── Shared Libraries panel ── */}
+          <div className="border-t border-gray-700 pt-3">
+            <button
+              onClick={() => setSharedPanelOpen((v) => !v)}
+              className="w-full flex items-center justify-between text-xs font-semibold text-gray-400 hover:text-gray-200 transition-colors mb-1"
+            >
+              <span className="flex items-center gap-1.5">
+                <span>🔗</span>
+                <span>{t("sharedKnowledge.sharedLibraries")}</span>
+                {activeSharedIds.length > 0 && (
+                  <span className="bg-blue-600/30 text-blue-400 rounded-full px-1.5 py-0.5 text-[10px]">
+                    {activeSharedIds.length}
+                  </span>
+                )}
+              </span>
+              <span className="flex items-center gap-1">
+                {isAdmin && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSharedPanelOpen(true);
+                      setShowCreateLib((v) => !v);
+                    }}
+                    className="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-white hover:bg-gray-600 transition-colors leading-none"
+                    title={t("sharedKnowledge.newLib")}
+                  >+</span>
+                )}
+                {sharedPanelOpen ? "▾" : "▸"}
+              </span>
+            </button>
+
+            {sharedPanelOpen && (
+              <div className="space-y-2">
+                {/* Admin: create library inline form */}
+                {isAdmin && showCreateLib && (
+                  <div className="bg-gray-700/50 rounded-lg p-2 space-y-1.5">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newLibName}
+                      onChange={(e) => setNewLibName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateLib();
+                        if (e.key === "Escape") { setShowCreateLib(false); setNewLibName(""); setNewLibDesc(""); }
+                      }}
+                      placeholder={t("sharedKnowledge.libraryName")}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                    />
+                    <input
+                      type="text"
+                      value={newLibDesc}
+                      onChange={(e) => setNewLibDesc(e.target.value)}
+                      placeholder={t("sharedKnowledge.libraryDescription")}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={handleCreateLib}
+                        disabled={!newLibName.trim() || creatingLib}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded px-2 py-1 text-xs font-medium"
+                      >
+                        {creatingLib ? "…" : t("common.create")}
+                      </button>
+                      <button
+                        onClick={() => { setShowCreateLib(false); setNewLibName(""); setNewLibDesc(""); }}
+                        className="text-gray-400 hover:text-white px-2 py-1 text-xs"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {sharedCourses.length === 0 && (
+                  <p className="text-xs text-gray-500">{t("sharedKnowledge.noLibraries")}</p>
+                )}
+
+                {/* Hidden file input for per-library uploads */}
+                <input
+                  ref={sharedFileInputRef}
+                  type="file"
+                  accept=".pdf,image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (uploadingToSharedId) handleSharedUpload(uploadingToSharedId, e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+
+                {sharedCourses.map((sc) => (
+                  <div key={sc.id} className="bg-gray-700/40 rounded-lg overflow-hidden">
+                    {/* Course header row */}
+                    <div className="flex items-center gap-1.5 px-2 py-1.5">
+                      {/* Activate for RAG checkbox */}
                       <input
                         type="checkbox"
                         checked={activeSharedIds.includes(sc.id)}
                         onChange={() => toggleSharedCourse(sc.id)}
-                        className="w-3.5 h-3.5 rounded border-gray-500 bg-gray-700 accent-blue-500"
+                        className="w-3 h-3 rounded border-gray-500 bg-gray-700 accent-blue-500 shrink-0"
+                        title={t("sharedKnowledge.activeSourcesHint")}
                       />
-                      <span className="text-xs text-gray-300 group-hover:text-white transition-colors truncate">
-                        {sc.name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                      <button
+                        onClick={() => toggleDocsOpen(sc.id)}
+                        className="flex-1 text-left text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-1 min-w-0"
+                      >
+                        <span className="truncate">{sc.name}</span>
+                        {sc.docs != null && (
+                          <span className="text-[10px] text-gray-500 shrink-0">({sc.docs.length})</span>
+                        )}
+                        <span className="text-gray-600 shrink-0">{sc.docsOpen ? "▾" : "▸"}</span>
+                      </button>
+                      {/* Upload to this library */}
+                      <button
+                        onClick={() => {
+                          setUploadingToSharedId(sc.id);
+                          sharedFileInputRef.current?.click();
+                        }}
+                        disabled={uploadingToSharedId === sc.id}
+                        title={t("sharedKnowledge.uploadDoc")}
+                        className="text-gray-500 hover:text-blue-400 transition-colors text-xs shrink-0 disabled:opacity-50"
+                      >
+                        {uploadingToSharedId === sc.id ? "…" : "↑"}
+                      </button>
+                      {/* Admin: delete library */}
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteLib(sc.id)}
+                          title={t("sharedKnowledge.deleteLibrary")}
+                          className="text-gray-600 hover:text-red-400 transition-colors text-xs shrink-0"
+                        >×</button>
+                      )}
+                    </div>
+
+                    {/* Expanded docs list */}
+                    {sc.docsOpen && (
+                      <div className="border-t border-gray-600/50 px-2 py-1.5 space-y-1">
+                        {!sc.docsLoaded ? (
+                          <p className="text-[10px] text-gray-500 animate-pulse">{t("common.loading")}</p>
+                        ) : sc.docs?.length === 0 ? (
+                          <p className="text-[10px] text-gray-500">{t("sharedKnowledge.noDocs")}</p>
+                        ) : (
+                          (sc.docs ?? []).slice(0, 5).map((d) => (
+                            <div key={d.id} className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-gray-500 shrink-0">📄</span>
+                              <span className="text-[10px] text-gray-400 truncate flex-1">{d.original_name}</span>
+                              <span className={`text-[9px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
+                                {t("knowledge.status." + d.processing_status)}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                        {(sc.docs?.length ?? 0) > 5 && (
+                          <p className="text-[10px] text-gray-500">+{(sc.docs?.length ?? 0) - 5}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right panel — Uploaded file list */}
+        {/* ── Right panel — document list ── */}
         <div className="flex-1 min-w-0">
           {docs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -325,46 +600,95 @@ export function KnowledgePage() {
                 const badgeColor = TYPE_BADGE_COLORS[type] ?? TYPE_BADGE_COLORS.reference;
                 const statusColor = STATUS_BADGE_COLORS[doc.processing_status] ?? STATUS_BADGE_COLORS.pending;
                 const imgFile = isImage(doc.original_name);
+                const showCopyRow = doc.id in copyTargets;
+
                 return (
                   <div
                     key={doc.id}
-                    className="bg-gray-800 rounded-xl px-3 py-2.5 border border-gray-700 flex items-center gap-3 hover:border-gray-600 transition-colors"
+                    className="bg-gray-800 rounded-xl border border-gray-700 hover:border-gray-600 transition-colors"
                   >
-                    {/* Small icon */}
-                    <span className="text-sm select-none shrink-0">{imgFile ? "🖼️" : "📄"}</span>
+                    {/* Main row */}
+                    <div className="px-3 py-2.5 flex items-center gap-3">
+                      <span className="text-sm select-none shrink-0">{imgFile ? "🖼️" : "📄"}</span>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{doc.original_name}</p>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border font-medium " + badgeColor}>
-                          {t("knowledge.types." + type) || type}
-                        </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border border-gray-600 bg-gray-700/50 text-gray-400">
-                          {imgFile ? t("knowledge.formats.image") : t("knowledge.formats.pdf")}
-                        </span>
-                        <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium " + statusColor}>
-                          {t("knowledge.status." + doc.processing_status)}
-                        </span>
-                        {doc.processing_status === "done" &&
-                         doc.metadata_?.scan_quality != null &&
-                         doc.metadata_.scan_quality !== "good" && (
-                          <span
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border bg-orange-900/30 text-orange-400 border-orange-700/30"
-                            title={t("knowledge.scanWarningTooltip")}
-                          >
-                            ⚠ {t("knowledge.scanWarning")}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{doc.original_name}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border font-medium " + badgeColor}>
+                            {t("knowledge.types." + type) || type}
                           </span>
-                        )}
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border border-gray-600 bg-gray-700/50 text-gray-400">
+                            {imgFile ? t("knowledge.formats.image") : t("knowledge.formats.pdf")}
+                          </span>
+                          <span className={"inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium " + statusColor}>
+                            {t("knowledge.status." + doc.processing_status)}
+                          </span>
+                          {doc.processing_status === "done" &&
+                           doc.metadata_?.scan_quality != null &&
+                           doc.metadata_.scan_quality !== "good" && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border bg-orange-900/30 text-orange-400 border-orange-700/30"
+                              title={t("knowledge.scanWarningTooltip")}
+                            >
+                              ⚠ {t("knowledge.scanWarning")}
+                            </span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Share to library button — only shown when libraries exist */}
+                      {sharedCourses.length > 0 && (
+                        <button
+                          onClick={() =>
+                            setCopyTargets((prev) => {
+                              if (doc.id in prev) {
+                                const n = { ...prev };
+                                delete n[doc.id];
+                                return n;
+                              }
+                              return { ...prev, [doc.id]: sharedCourses[0]?.id ?? "" };
+                            })
+                          }
+                          title={t("sharedKnowledge.copyToLibrary")}
+                          className={`text-sm transition-colors p-1 rounded leading-none flex-shrink-0 ${
+                            showCopyRow ? "text-blue-400" : "text-gray-500 hover:text-blue-400"
+                          }`}
+                        >
+                          📤
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="text-gray-500 hover:text-red-400 transition-colors p-1 rounded text-lg leading-none flex-shrink-0"
+                        title={t("common.delete")}
+                      >×</button>
                     </div>
 
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="text-gray-500 hover:text-red-400 transition-colors p-1 rounded text-lg leading-none flex-shrink-0"
-                      title={t("common.delete")}
-                    >
-                      ×
-                    </button>
+                    {/* Inline copy-to-library row */}
+                    {showCopyRow && (
+                      <div className="border-t border-gray-700 px-3 py-2 flex items-center gap-2">
+                        <span className="text-xs text-gray-400 shrink-0">{t("sharedKnowledge.copyToLibrary")}:</span>
+                        <select
+                          value={copyTargets[doc.id] ?? ""}
+                          onChange={(e) =>
+                            setCopyTargets((prev) => ({ ...prev, [doc.id]: e.target.value }))
+                          }
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
+                        >
+                          {sharedCourses.map((sc) => (
+                            <option key={sc.id} value={sc.id}>{sc.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleCopyToShared(doc.id)}
+                          disabled={!copyTargets[doc.id] || copyingDocId === doc.id}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2.5 py-1 rounded text-xs font-medium transition-colors shrink-0"
+                        >
+                          {copyingDocId === doc.id ? "…" : t("common.copy")}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

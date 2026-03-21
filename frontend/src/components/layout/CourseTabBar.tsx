@@ -6,6 +6,16 @@ import type { Course } from "../../types";
 import { setLanguage } from "../../i18n";
 import { useUser } from "../../context/UserContext";
 
+const AVATAR_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899",
+];
+
+function avatarColor(username: string): string {
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) hash = username.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 const COLOR_OPTIONS = [
   "#3b82f6",
   "#10b981",
@@ -19,7 +29,7 @@ export function CourseTabBar() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { courseId } = useParams<{ courseId: string }>();
-  const { currentUser } = useUser();
+  const { currentUser, clearUser } = useUser();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -277,26 +287,37 @@ export function CourseTabBar() {
             +
           </button>
 
-          {/* Shared Library tab — admin only */}
-          {currentUser?.is_admin && (
-            <button
-              onClick={() => navigate("/shared-knowledge")}
-              className="flex items-center gap-1.5 px-3 h-full text-sm whitespace-nowrap transition-colors border-b-2 text-gray-400 hover:bg-gray-700 hover:text-white border-transparent shrink-0"
-              title={t("sharedKnowledge.title")}
-            >
-              <span className="text-xs">🔗</span>
-              <span>{t("sharedKnowledge.tabLabel")}</span>
-            </button>
-          )}
         </div>
 
-        {/* Language toggle */}
-        <button
-          onClick={toggleLanguage}
-          className="shrink-0 text-xs text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-0.5 mx-2 transition-colors"
-        >
-          {i18n.language === "he" ? "EN" : "עב"}
-        </button>
+        {/* Right side: user avatar + logout + language toggle */}
+        <div className="shrink-0 flex items-center gap-1.5 mx-2">
+          {currentUser && (
+            <>
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                style={{ backgroundColor: avatarColor(currentUser.username) }}
+              >
+                {currentUser.username.trim().charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs text-gray-400 max-w-[5rem] truncate hidden sm:block">
+                {currentUser.username}
+              </span>
+              <button
+                onClick={clearUser}
+                title={t("auth.logout")}
+                className="text-xs text-gray-500 hover:text-white border border-gray-600 rounded px-1.5 py-0.5 transition-colors"
+              >
+                ↩
+              </button>
+            </>
+          )}
+          <button
+            onClick={toggleLanguage}
+            className="text-xs text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-0.5 transition-colors"
+          >
+            {i18n.language === "he" ? "EN" : "עב"}
+          </button>
+        </div>
       </div>
 
       {/* New Course Modal */}

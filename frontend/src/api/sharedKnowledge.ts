@@ -58,3 +58,11 @@ export async function uploadToSharedCourse(courseId: string, file: File): Promis
 export async function deleteSharedDocument(courseId: string, docId: string): Promise<void> {
   await client.delete(`/api/shared-knowledge/courses/${courseId}/documents/${docId}`);
 }
+
+export async function copyDocumentToSharedCourse(sharedCourseId: string, documentId: string): Promise<SharedDocument> {
+  const res = await client.post<SharedDocument>(
+    `/api/shared-knowledge/courses/${sharedCourseId}/copy-from-document`,
+    { document_id: documentId }
+  );
+  return res.data;
+}

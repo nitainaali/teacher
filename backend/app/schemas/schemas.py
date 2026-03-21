@@ -26,6 +26,10 @@ class SharedCourseCreate(BaseModel):
     color: Optional[str] = "#6b7280"
 
 
+class CopyDocumentRequest(BaseModel):
+    document_id: str
+
+
 class SharedCourseOut(BaseModel):
     id: str
     name: str

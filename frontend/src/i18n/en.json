@@ -23,7 +23,8 @@
     "analyze": "Analyze",
     "send": "Send",
     "maxFileSize": "Max file size: 40 MB",
-    "fileTooLarge": "File is too large (max 40 MB)"
+    "fileTooLarge": "File is too large (max 40 MB)",
+    "copy": "Copy"
   },
   "knowledgeMode": {
     "label": "Knowledge source",
@@ -448,23 +449,33 @@
     "admin": "Admin",
     "createError": "Failed to create user"
   },
+  "auth": {
+    "logout": "Logout"
+  },
   "sharedKnowledge": {
     "title": "Shared Knowledge Library",
     "tabLabel": "Shared Library",
     "libraries": "Libraries",
     "noLibraries": "No shared libraries yet",
     "newLibrary": "New library",
+    "newLib": "New Library",
     "libraryName": "Library name",
     "libraryDescription": "Description (optional)",
     "deleteLibrary": "Delete library",
-    "selectLibrary": "Select a library from the left to view documents",
-    "uploadDoc": "Upload document",
-    "noDocs": "No documents in this library yet",
+    "selectLibrary": "Select library…",
+    "uploadDoc": "Upload to library",
+    "noDocs": "No documents yet",
     "loadError": "Failed to load libraries",
     "createError": "Failed to create library",
     "deleteError": "Failed to delete",
     "uploadError": "Upload failed",
     "activeSources": "Shared sources",
-    "activeSourcesHint": "Include these libraries in RAG searches for this course"
+    "activeSourcesHint": "Include these libraries in RAG searches for this course",
+    "activeLabel": "active",
+    "sharedLibraries": "Shared Libraries",
+    "alsoShareTo": "Also share to:",
+    "copyToLibrary": "Copy to shared library",
+    "copiedSuccess": "Copied to shared library",
+    "copyError": "Failed to copy"
   }
 }

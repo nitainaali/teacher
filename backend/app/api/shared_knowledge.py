@@ -17,8 +17,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import SharedCourse, SharedDocument, User
-from app.schemas.schemas import SharedCourseCreate, SharedCourseOut, SharedDocumentOut
+from app.models.models import SharedCourse, SharedDocument, Document, Course, User
+from app.schemas.schemas import SharedCourseCreate, SharedCourseOut, SharedDocumentOut, CopyDocumentRequest
 from app.api.deps import get_current_user, get_admin_user
 from app.services.shared_document_processor import process_shared_document
 
@@ -172,3 +172,75 @@ async def delete_shared_document(
         pass
     await db.delete(doc)
     await db.commit()
+
+
+@router.post("/courses/{course_id}/copy-from-document", response_model=SharedDocumentOut, status_code=201)
+async def copy_document_to_shared_course(
+    course_id: str,
+    body: CopyDocumentRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Copy one of the user's own documents into a shared knowledge library."""
+    # Verify shared course exists
+    sc_result = await db.execute(select(SharedCourse).where(SharedCourse.id == course_id))
+    shared_course = sc_result.scalar_one_or_none()
+    if not shared_course:
+        raise HTTPException(404, "Shared course not found")
+
+    # Verify source document belongs to a course owned by current_user
+    doc_result = await db.execute(
+        select(Document)
+        .join(Course, Course.id == Document.course_id)
+        .where(Document.id == body.document_id, Course.user_id == current_user.id)
+    )
+    source_doc = doc_result.scalar_one_or_none()
+    if not source_doc:
+        raise HTTPException(404, "Document not found or not owned by you")
+
+    # Read source file
+    try:
+        with open(source_doc.file_path, "rb") as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise HTTPException(404, "Source file not found on disk")
+
+    # Duplicate detection within this shared course
+    content_hash = hashlib.sha256(content).hexdigest()
+    dup_result = await db.execute(
+        select(SharedDocument).where(
+            SharedDocument.shared_course_id == course_id,
+            SharedDocument.content_hash == content_hash,
+        )
+    )
+    if dup_result.scalar_one_or_none():
+        raise HTTPException(409, detail={"duplicate": True, "name": source_doc.original_name})
+
+    # Copy file to shared storage
+    upload_dir = Path(settings.upload_dir) / "shared"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(source_doc.filename).suffix
+    stored_name = f"{uuid.uuid4()}{ext}"
+    file_path = upload_dir / stored_name
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    new_doc = SharedDocument(
+        shared_course_id=course_id,
+        filename=stored_name,
+        original_name=source_doc.original_name,
+        file_path=str(file_path),
+        doc_type=source_doc.doc_type,
+        processing_status="pending",
+        content_hash=content_hash,
+        uploaded_by=current_user.id,
+    )
+    db.add(new_doc)
+    await db.flush()
+    await db.refresh(new_doc)
+
+    background_tasks.add_task(_process_in_new_session, new_doc.id)
+
+    await db.commit()
+    return new_doc

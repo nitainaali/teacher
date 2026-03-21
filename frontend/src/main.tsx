@@ -18,7 +18,6 @@ import { UnifiedChatPage } from "./pages/UnifiedChatPage";
 import { DiagnosisPage } from "./pages/DiagnosisPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { SharedKnowledgePage } from "./pages/SharedKnowledgePage";
 
 function AppRoutes() {
   const { currentUser } = useUser();
@@ -60,15 +59,6 @@ function AppRoutes() {
             }
           />
 
-          {/* Shared Knowledge Library (admin only) */}
-          <Route
-            path="shared-knowledge"
-            element={
-              <PlainPageLayout>
-                <SharedKnowledgePage />
-              </PlainPageLayout>
-            }
-          />
         </Route>
       </Routes>
     </BrowserRouter>
