@@ -476,6 +476,11 @@
     "alsoShareTo": "גם שתף ל:",
     "copyToLibrary": "העתק לספריה",
     "copiedSuccess": "הועתק לספריה המשותפת",
-    "copyError": "שגיאה בהעתקה"
+    "copyError": "שגיאה בהעתקה",
+    "importToKnowledge": "ייבא לקורס שלי",
+    "importedSuccess": "יובא לידע הפנימי",
+    "importError": "שגיאה בייבוא",
+    "editDoc": "ערוך",
+    "retryDoc": "נסה שוב"
   }
 }

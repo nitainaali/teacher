@@ -476,6 +476,11 @@
     "alsoShareTo": "Also share to:",
     "copyToLibrary": "Copy to shared library",
     "copiedSuccess": "Copied to shared library",
-    "copyError": "Failed to copy"
+    "copyError": "Failed to copy",
+    "importToKnowledge": "Import to my course",
+    "importedSuccess": "Imported to your knowledge",
+    "importError": "Import failed",
+    "editDoc": "Edit",
+    "retryDoc": "Retry processing"
   }
 }

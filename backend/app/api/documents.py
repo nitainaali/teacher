@@ -9,8 +9,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import Document, User
-from app.schemas.schemas import DocumentOut
+from app.models.models import Document, Course, SharedDocument, User
+from app.schemas.schemas import DocumentOut, ImportFromSharedRequest
 from app.services.document_processor import process_document
 from app.api.deps import get_current_user
 from typing import List, Optional
@@ -141,3 +141,71 @@ async def delete_document(
         pass
     await db.delete(doc)
     await db.commit()
+
+
+@router.post("/import-from-shared", response_model=DocumentOut, status_code=201)
+async def import_from_shared(
+    body: ImportFromSharedRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Copy a shared-library document into the user's personal course knowledge."""
+    # Verify shared document exists
+    sd_result = await db.execute(select(SharedDocument).where(SharedDocument.id == body.shared_document_id))
+    shared_doc = sd_result.scalar_one_or_none()
+    if not shared_doc:
+        raise HTTPException(404, "Shared document not found")
+
+    # Verify the target course belongs to current_user
+    course_result = await db.execute(
+        select(Course).where(Course.id == body.course_id, Course.user_id == current_user.id)
+    )
+    if not course_result.scalar_one_or_none():
+        raise HTTPException(404, "Course not found or not owned by you")
+
+    # Read source file
+    try:
+        with open(shared_doc.file_path, "rb") as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise HTTPException(404, "Source file not found on disk")
+
+    # Duplicate detection within the target course
+    content_hash = hashlib.sha256(content).hexdigest()
+    dup_result = await db.execute(
+        select(Document).where(
+            Document.course_id == body.course_id,
+            Document.content_hash == content_hash,
+        )
+    )
+    if dup_result.scalar_one_or_none():
+        raise HTTPException(409, detail={"duplicate": True, "name": shared_doc.original_name})
+
+    # Copy file to personal upload storage
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(shared_doc.filename).suffix
+    stored_name = f"{uuid.uuid4()}{ext}"
+    file_path = upload_dir / stored_name
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    doc = Document(
+        course_id=body.course_id,
+        filename=stored_name,
+        original_name=shared_doc.original_name,
+        doc_type=shared_doc.doc_type,
+        file_path=str(file_path),
+        processing_status="pending",
+        content_hash=content_hash,
+        upload_source="knowledge",
+    )
+    db.add(doc)
+    await db.flush()
+    await db.refresh(doc)
+
+    background_tasks.add_task(_process_in_new_session, doc.id)
+
+    await db.commit()
+    return doc

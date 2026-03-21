@@ -30,6 +30,16 @@ class CopyDocumentRequest(BaseModel):
     document_id: str
 
 
+class ImportFromSharedRequest(BaseModel):
+    shared_document_id: str
+    course_id: str
+
+
+class SharedDocumentUpdate(BaseModel):
+    original_name: Optional[str] = None
+    doc_type: Optional[str] = None
+
+
 class SharedCourseOut(BaseModel):
     id: str
     name: str

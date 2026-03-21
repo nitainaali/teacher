@@ -66,3 +66,22 @@ export async function copyDocumentToSharedCourse(sharedCourseId: string, documen
   );
   return res.data;
 }
+
+export async function updateSharedDocument(
+  courseId: string,
+  docId: string,
+  data: { original_name?: string; doc_type?: string }
+): Promise<SharedDocument> {
+  const res = await client.patch<SharedDocument>(
+    `/api/shared-knowledge/courses/${courseId}/documents/${docId}`,
+    data
+  );
+  return res.data;
+}
+
+export async function retrySharedDocument(courseId: string, docId: string): Promise<SharedDocument> {
+  const res = await client.post<SharedDocument>(
+    `/api/shared-knowledge/courses/${courseId}/documents/${docId}/retry`
+  );
+  return res.data;
+}

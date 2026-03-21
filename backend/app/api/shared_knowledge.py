@@ -18,7 +18,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import SharedCourse, SharedDocument, Document, Course, User
-from app.schemas.schemas import SharedCourseCreate, SharedCourseOut, SharedDocumentOut, CopyDocumentRequest
+from app.schemas.schemas import SharedCourseCreate, SharedCourseOut, SharedDocumentOut, CopyDocumentRequest, SharedDocumentUpdate
 from app.api.deps import get_current_user, get_admin_user
 from app.services.shared_document_processor import process_shared_document
 
@@ -244,3 +244,60 @@ async def copy_document_to_shared_course(
 
     await db.commit()
     return new_doc
+
+
+@router.patch("/courses/{course_id}/documents/{doc_id}", response_model=SharedDocumentOut)
+async def update_shared_document(
+    course_id: str,
+    doc_id: str,
+    body: SharedDocumentUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Admin: rename a shared document or change its doc_type."""
+    result = await db.execute(
+        select(SharedDocument).where(
+            SharedDocument.id == doc_id,
+            SharedDocument.shared_course_id == course_id,
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Shared document not found")
+
+    if body.original_name is not None:
+        doc.original_name = body.original_name
+    if body.doc_type is not None:
+        doc.doc_type = body.doc_type
+
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@router.post("/courses/{course_id}/documents/{doc_id}/retry", response_model=SharedDocumentOut)
+async def retry_shared_document(
+    course_id: str,
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Admin: retry processing for a failed or stuck shared document."""
+    result = await db.execute(
+        select(SharedDocument).where(
+            SharedDocument.id == doc_id,
+            SharedDocument.shared_course_id == course_id,
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Shared document not found")
+
+    doc.processing_status = "pending"
+    doc.metadata_ = None
+    await db.commit()
+    await db.refresh(doc)
+
+    background_tasks.add_task(_process_in_new_session, doc.id)
+    return doc

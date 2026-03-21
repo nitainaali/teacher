@@ -32,9 +32,54 @@ async def _reset_stuck_documents() -> None:
         print(f"[startup] Could not reset stuck documents: {exc}")
 
 
+async def _recover_shared_documents() -> None:
+    """On startup, fix shared documents whose background tasks were lost on container restart.
+    - 'processing' → reset to 'error' (interrupted mid-run)
+    - 'pending'    → requeue processing (background task was never started or was lost)
+    """
+    import asyncio
+    try:
+        from sqlalchemy import select
+        from app.models.models import SharedDocument
+        from app.api.shared_knowledge import _process_in_new_session
+
+        async with AsyncSessionLocal() as db:
+            # Reset interrupted ones
+            stuck_result = await db.execute(
+                update(SharedDocument)
+                .where(SharedDocument.processing_status == "processing")
+                .values(
+                    processing_status="error",
+                    metadata_={"error": "Processing interrupted — use retry button"},
+                )
+                .returning(SharedDocument.id)
+            )
+            stuck_ids = [r[0] for r in stuck_result.fetchall()]
+
+            # Find pending ones to requeue
+            pending_result = await db.execute(
+                select(SharedDocument.id).where(SharedDocument.processing_status == "pending")
+            )
+            pending_ids = [r[0] for r in pending_result.fetchall()]
+
+            if stuck_ids or pending_ids:
+                await db.commit()
+
+        if stuck_ids:
+            print(f"[startup] Reset {len(stuck_ids)} stuck shared document(s) → 'error'")
+        if pending_ids:
+            print(f"[startup] Requeueing {len(pending_ids)} pending shared document(s)")
+            for doc_id in pending_ids:
+                asyncio.ensure_future(_process_in_new_session(doc_id))
+
+    except Exception as exc:
+        print(f"[startup] Could not recover shared documents: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _reset_stuck_documents()
+    await _recover_shared_documents()
     yield
 
 

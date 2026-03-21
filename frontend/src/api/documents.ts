@@ -22,3 +22,9 @@ export const uploadDocument = (file: File, courseId: string, docType: string) =>
 };
 
 export const deleteDocument = (id: string) => client.delete(`/api/documents/${id}`);
+
+export const importFromShared = (sharedDocumentId: string, courseId: string): Promise<Document> =>
+  client.post<Document>("/api/documents/import-from-shared", {
+    shared_document_id: sharedDocumentId,
+    course_id: courseId,
+  }).then((r) => r.data);

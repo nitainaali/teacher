@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getDocuments, uploadDocument, deleteDocument } from "../api/documents";
+import { getDocuments, uploadDocument, deleteDocument, importFromShared } from "../api/documents";
 import { getCourse, updateActiveSharedCourses } from "../api/courses";
 import {
   getSharedCourses,
@@ -10,6 +10,8 @@ import {
   createSharedCourse,
   deleteSharedCourse,
   copyDocumentToSharedCourse,
+  updateSharedDocument,
+  retrySharedDocument,
 } from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
 import { useUser } from "../context/UserContext";
@@ -86,6 +88,12 @@ export function KnowledgePage() {
   const [newLibName, setNewLibName] = useState("");
   const [newLibDesc, setNewLibDesc] = useState("");
   const [creatingLib, setCreatingLib] = useState(false);
+
+  // Import shared doc + per-doc actions
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  // Edit: docId → {original_name, doc_type} or null (closed)
+  const [editingDoc, setEditingDoc] = useState<Record<string, {name: string; docType: string} | null>>({});
 
   // File input for shared library uploads
   const sharedFileInputRef = useRef<HTMLInputElement>(null);
@@ -282,6 +290,58 @@ export function KnowledgePage() {
     } finally {
       setCopyingDocId(null);
     }
+  };
+
+  const handleImportFromShared = async (sharedDocId: string, sharedCourseId: string) => {
+    if (!courseId) return;
+    setImportingId(sharedDocId);
+    try {
+      await importFromShared(sharedDocId, courseId);
+      setToast(t("sharedKnowledge.importedSuccess"));
+      fetchDocs();
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        setToast(t("knowledge.duplicate", { name: "" }));
+      } else {
+        setToast(t("sharedKnowledge.importError"));
+      }
+    } finally {
+      setImportingId(null);
+    }
+  };
+
+  const handleRetrySharedDoc = async (sharedCourseId: string, docId: string) => {
+    setRetryingId(docId);
+    try {
+      const updated = await retrySharedDocument(sharedCourseId, docId);
+      setSharedCourses((prev) =>
+        prev.map((sc) =>
+          sc.id === sharedCourseId
+            ? { ...sc, docs: (sc.docs ?? []).map((d) => (d.id === docId ? updated : d)) }
+            : sc
+        )
+      );
+    } catch { /* silently fail */ }
+    finally { setRetryingId(null); }
+  };
+
+  const handleSaveEditDoc = async (sharedCourseId: string, docId: string) => {
+    const edit = editingDoc[docId];
+    if (!edit) return;
+    try {
+      const updated = await updateSharedDocument(sharedCourseId, docId, {
+        original_name: edit.name,
+        doc_type: edit.docType,
+      });
+      setSharedCourses((prev) =>
+        prev.map((sc) =>
+          sc.id === sharedCourseId
+            ? { ...sc, docs: (sc.docs ?? []).map((d) => (d.id === docId ? updated : d)) }
+            : sc
+        )
+      );
+      setEditingDoc((prev) => { const n = { ...prev }; delete n[docId]; return n; });
+    } catch { /* silently fail */ }
   };
 
   const pendingCount = selectedFiles.filter((e) => e.status === "pending").length;
@@ -514,7 +574,7 @@ export function KnowledgePage() {
                 {sharedCourses.map((sc) => (
                   <div key={sc.id} className="bg-gray-700/40 rounded-lg overflow-hidden">
                     {/* Course header row */}
-                    <div className="flex items-center gap-1.5 px-2 py-1.5">
+                    <div className="flex items-center gap-1 px-2 py-1.5">
                       {/* Activate for RAG checkbox */}
                       <input
                         type="checkbox"
@@ -541,7 +601,7 @@ export function KnowledgePage() {
                         }}
                         disabled={uploadingToSharedId === sc.id}
                         title={t("sharedKnowledge.uploadDoc")}
-                        className="text-gray-500 hover:text-blue-400 transition-colors text-xs shrink-0 disabled:opacity-50"
+                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-400 hover:text-blue-400 transition-colors shrink-0 disabled:opacity-50 text-sm"
                       >
                         {uploadingToSharedId === sc.id ? "…" : "↑"}
                       </button>
@@ -550,7 +610,7 @@ export function KnowledgePage() {
                         <button
                           onClick={() => handleDeleteLib(sc.id)}
                           title={t("sharedKnowledge.deleteLibrary")}
-                          className="text-gray-600 hover:text-red-400 transition-colors text-xs shrink-0"
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-red-400 transition-colors shrink-0 text-sm"
                         >×</button>
                       )}
                     </div>
@@ -563,18 +623,103 @@ export function KnowledgePage() {
                         ) : sc.docs?.length === 0 ? (
                           <p className="text-[10px] text-gray-500">{t("sharedKnowledge.noDocs")}</p>
                         ) : (
-                          (sc.docs ?? []).slice(0, 5).map((d) => (
-                            <div key={d.id} className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-gray-500 shrink-0">📄</span>
-                              <span className="text-[10px] text-gray-400 truncate flex-1">{d.original_name}</span>
-                              <span className={`text-[9px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
-                                {t("knowledge.status." + d.processing_status)}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                        {(sc.docs?.length ?? 0) > 5 && (
-                          <p className="text-[10px] text-gray-500">+{(sc.docs?.length ?? 0) - 5}</p>
+                          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
+                            {(sc.docs ?? []).map((d) => (
+                              <div key={d.id}>
+                                {editingDoc[d.id] ? (
+                                  /* Inline edit form */
+                                  <div className="bg-gray-700/60 rounded p-1.5 space-y-1.5">
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      value={editingDoc[d.id]!.name}
+                                      onChange={(e) =>
+                                        setEditingDoc((prev) => ({
+                                          ...prev,
+                                          [d.id]: { ...prev[d.id]!, name: e.target.value },
+                                        }))
+                                      }
+                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-[10px] focus:outline-none focus:border-blue-500"
+                                    />
+                                    <select
+                                      value={editingDoc[d.id]!.docType}
+                                      onChange={(e) =>
+                                        setEditingDoc((prev) => ({
+                                          ...prev,
+                                          [d.id]: { ...prev[d.id]!, docType: e.target.value },
+                                        }))
+                                      }
+                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-[10px] focus:outline-none focus:border-blue-500"
+                                    >
+                                      {DOC_TYPES.map((dt) => (
+                                        <option key={dt} value={dt}>{t("knowledge.types." + dt)}</option>
+                                      ))}
+                                    </select>
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => handleSaveEditDoc(sc.id, d.id)}
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                      >
+                                        {t("common.save")}
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          setEditingDoc((prev) => {
+                                            const n = { ...prev }; delete n[d.id]; return n;
+                                          })
+                                        }
+                                        className="text-gray-400 hover:text-white px-1.5 py-0.5 text-[10px]"
+                                      >
+                                        {t("common.cancel")}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Normal doc row */
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-gray-500 shrink-0">📄</span>
+                                    <span className="text-[10px] text-gray-400 truncate flex-1">{d.original_name}</span>
+                                    <span className={`text-[9px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
+                                      {t("knowledge.status." + d.processing_status)}
+                                    </span>
+                                    {/* Import to personal course */}
+                                    <button
+                                      onClick={() => handleImportFromShared(d.id, sc.id)}
+                                      disabled={importingId === d.id}
+                                      title={t("sharedKnowledge.importToKnowledge")}
+                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-green-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
+                                    >
+                                      {importingId === d.id ? "…" : "↓"}
+                                    </button>
+                                    {/* Admin: edit doc */}
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() =>
+                                          setEditingDoc((prev) => ({
+                                            ...prev,
+                                            [d.id]: { name: d.original_name, docType: d.doc_type },
+                                          }))
+                                        }
+                                        title={t("sharedKnowledge.editDoc")}
+                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-white transition-colors shrink-0 text-xs"
+                                      >✏</button>
+                                    )}
+                                    {/* Admin: retry if error or pending */}
+                                    {isAdmin && (d.processing_status === "error" || d.processing_status === "pending") && (
+                                      <button
+                                        onClick={() => handleRetrySharedDoc(sc.id, d.id)}
+                                        disabled={retryingId === d.id}
+                                        title={t("sharedKnowledge.retryDoc")}
+                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-yellow-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
+                                      >
+                                        {retryingId === d.id ? "…" : "↺"}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     )}
