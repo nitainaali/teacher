@@ -172,7 +172,6 @@ export function KnowledgePage() {
     try {
       await deleteSharedCourse(scId);
       setSharedCourses((prev) => prev.filter((s) => s.id !== scId));
-      setActiveSharedIds((prev) => prev.filter((id) => id !== scId));
     } catch { /* silently fail */ }
   };
 
