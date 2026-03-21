@@ -82,6 +82,8 @@
     "deleteError": "מחיקת הקובץ נכשלה. נסה שוב.",
     "scanWarning": "לא נסרק כראוי",
     "scanWarningTooltip": "הקובץ עובד אך ייתכן שהתוכן לא חולץ במלואו",
+    "retryProcessing": "נסה עיבוד מחדש",
+    "editDoc": "ערוך שם",
     "formats": {
       "pdf": "PDF",
       "image": "תמונה"
@@ -481,6 +483,9 @@
     "importedSuccess": "יובא לידע הפנימי",
     "importError": "שגיאה בייבוא",
     "editDoc": "ערוך",
-    "retryDoc": "נסה שוב"
+    "retryDoc": "נסה שוב",
+    "importAll": "ייבא הכל לקורס שלי",
+    "importedAllSuccess": "יובאו {{count}} קבצים לידע הפנימי",
+    "importedAllDuplicate": "כל הקבצים כבר קיימים בידע הפנימי"
   }
 }

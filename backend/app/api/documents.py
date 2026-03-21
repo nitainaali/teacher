@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import Document, Course, SharedDocument, User
-from app.schemas.schemas import DocumentOut, ImportFromSharedRequest
+from app.schemas.schemas import DocumentOut, DocumentUpdate, ImportFromSharedRequest
 from app.services.document_processor import process_document
 from app.api.deps import get_current_user
 from typing import List, Optional
@@ -141,6 +141,47 @@ async def delete_document(
         pass
     await db.delete(doc)
     await db.commit()
+
+
+@router.patch("/{doc_id}", response_model=DocumentOut)
+async def update_document(
+    doc_id: str,
+    body: DocumentUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Rename a personal document or change its doc_type."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    if body.original_name is not None:
+        doc.original_name = body.original_name
+    if body.doc_type is not None:
+        doc.doc_type = body.doc_type
+    await db.flush()
+    await db.refresh(doc)
+    return doc
+
+
+@router.post("/{doc_id}/retry", response_model=DocumentOut)
+async def retry_document(
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retry processing for a failed or stuck personal document."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    doc.processing_status = "pending"
+    doc.metadata_ = None
+    await db.flush()
+    await db.refresh(doc)
+    background_tasks.add_task(_process_in_new_session, doc.id)
+    return doc
 
 
 @router.post("/import-from-shared", response_model=DocumentOut, status_code=201)

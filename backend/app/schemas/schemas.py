@@ -99,6 +99,11 @@ class CourseReorderRequest(BaseModel):
 
 # ── Documents ────────────────────────────────────────────────────────────────
 
+class DocumentUpdate(BaseModel):
+    original_name: Optional[str] = None
+    doc_type: Optional[str] = None
+
+
 class DocumentOut(BaseModel):
     id: str
     course_id: str

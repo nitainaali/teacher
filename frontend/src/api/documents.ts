@@ -28,3 +28,9 @@ export const importFromShared = (sharedDocumentId: string, courseId: string): Pr
     shared_document_id: sharedDocumentId,
     course_id: courseId,
   }).then((r) => r.data);
+
+export const updateDocument = (id: string, data: { original_name?: string; doc_type?: string }): Promise<Document> =>
+  client.patch<Document>(`/api/documents/${id}`, data).then((r) => r.data);
+
+export const retryDocument = (id: string): Promise<Document> =>
+  client.post<Document>(`/api/documents/${id}/retry`).then((r) => r.data);

@@ -251,7 +251,9 @@ def _pypdf_extract(file_path: str) -> str:
         pages_text = []
         for page in reader.pages:
             pages_text.append(page.extract_text() or "")
-        return "\n\n".join(pages_text)
+        text = "\n\n".join(pages_text)
+        # Strip null bytes — PostgreSQL VARCHAR rejects \x00
+        return text.replace("\x00", "")
     except Exception:
         return ""
 

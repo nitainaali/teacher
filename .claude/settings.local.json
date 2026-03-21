@@ -31,7 +31,9 @@
       "Bash(git -C \"C:/Users/nitai/projects/teacher\" diff --name-only claude/lucid-sanderson master)",
       "Bash(git -C \"C:/Users/nitai/projects/teacher/.claude/worktrees/lucid-sanderson\" status --short)",
       "Bash(git -C \"C:/Users/nitai/projects/teacher\" merge claude/lucid-sanderson --no-edit)",
-      "Bash(docker compose up --build -d backend)"
+      "Bash(docker compose up --build -d backend)",
+      "Bash(docker compose -f \"C:\\\\Users\\\\nitai\\\\projects\\\\teacher\\\\docker-compose.yml\" ps)",
+      "Bash(docker exec teacher-backend-1 python -c \":*)"
     ]
   }
 }
