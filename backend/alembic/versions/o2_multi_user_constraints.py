@@ -15,8 +15,40 @@ down_revision = 'o1_multi_user_schema'
 branch_labels = None
 depends_on = None
 
+NITAI_USERNAME = "ניתאי"
+NITAI_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+def _backfill_user_id() -> None:
+    """Ensure admin user exists and all null user_id rows are backfilled."""
+    conn = op.get_bind()
+
+    # Create admin user if not exists
+    conn.execute(
+        sa.text("""
+            INSERT INTO users (id, username, is_admin, created_at)
+            VALUES (:id, :username, TRUE, NOW())
+            ON CONFLICT (username) DO UPDATE SET is_admin = TRUE
+        """),
+        {"id": NITAI_USER_ID, "username": NITAI_USERNAME},
+    )
+
+    # Backfill all tables
+    for table in [
+        "courses", "student_profile", "learning_events",
+        "student_performance", "homework_submissions",
+        "topic_summaries", "study_sessions", "review_logs",
+    ]:
+        conn.execute(
+            sa.text(f"UPDATE {table} SET user_id = :uid WHERE user_id IS NULL"),
+            {"uid": NITAI_USER_ID},
+        )
+
 
 def upgrade() -> None:
+    # Step 0: backfill data before applying NOT NULL constraints
+    _backfill_user_id()
+
     # courses.user_id — NOT NULL + FK + index
     op.alter_column('courses', 'user_id', nullable=False)
     op.create_foreign_key('fk_courses_user_id', 'courses', 'users', ['user_id'], ['id'], ondelete='CASCADE')
