@@ -438,5 +438,33 @@
     "examRefFile": "Reference exam (optional)",
     "inputPlaceholder": "Type a message...",
     "examWelcome": "**Exam Analysis** 📋\n\nAttach your exam file below, then in the text box you can add:\n- **Analysis guidance** – any specific aspects to focus on\n- **Your experience** – how did the exam go?\n\nBoth are optional. Click **Analyze** when ready."
+  },
+  "login": {
+    "title": "Who are you?",
+    "subtitle": "Choose your user to continue",
+    "newUser": "New user",
+    "usernamePlaceholder": "Username",
+    "createUser": "Create",
+    "admin": "Admin",
+    "createError": "Failed to create user"
+  },
+  "sharedKnowledge": {
+    "title": "Shared Knowledge Library",
+    "tabLabel": "Shared Library",
+    "libraries": "Libraries",
+    "noLibraries": "No shared libraries yet",
+    "newLibrary": "New library",
+    "libraryName": "Library name",
+    "libraryDescription": "Description (optional)",
+    "deleteLibrary": "Delete library",
+    "selectLibrary": "Select a library from the left to view documents",
+    "uploadDoc": "Upload document",
+    "noDocs": "No documents in this library yet",
+    "loadError": "Failed to load libraries",
+    "createError": "Failed to create library",
+    "deleteError": "Failed to delete",
+    "uploadError": "Upload failed",
+    "activeSources": "Shared sources",
+    "activeSourcesHint": "Include these libraries in RAG searches for this course"
   }
 }

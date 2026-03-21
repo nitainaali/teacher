@@ -74,6 +74,7 @@ async def check_homework_stream(
     user_description: Optional[str] = None,
     mode: str = "check",        # "check" | "help"
     revelation_level: int = 1,  # 1 | 2 | 3  (only used when mode == "help")
+    user_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """Stream SSE tokens for homework checking or solving help."""
 
@@ -115,6 +116,7 @@ async def check_homework_stream(
         max_tokens=2048,
         extra_system=extra_system,
         language=language,
+        user_id=user_id,
     ):
         full_response += token
         yield token
@@ -127,6 +129,7 @@ async def check_homework_stream(
             event_type=event_type,
             course_id=course_id,
             details={"revelation_level": revelation_level} if mode == "help" else {},
+            user_id=user_id,
         )
         # Write homework_complete diagnosis event only for actual check submissions
         if mode == "check":
@@ -138,6 +141,7 @@ async def check_homework_stream(
                 course_id=course_id,
                 topic=topic,
                 details={"score": score},
+                user_id=user_id,
             )
         await db.commit()
     except Exception:

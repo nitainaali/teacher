@@ -6,17 +6,23 @@ from sqlalchemy import select
 import anthropic as _anthropic
 
 from app.core.database import get_db
-from app.models.models import TopicSummary
+from app.models.models import TopicSummary, User
 from app.schemas.schemas import TopicSummaryRequest, TopicSummaryOut, RecommendationExplanationRequest
 from app.services import claude, rag
 from app.services.recommendations import get_recommendations
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
 
 
 @router.post("/topic-summary")
-async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(get_db)):
+async def topic_summary(
+    data: TopicSummaryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Stream a comprehensive summary of a specific topic from course materials."""
+    user_id = current_user.id
 
     async def event_generator():
         # Only search knowledge documents (not exam uploads) for topic summaries
@@ -60,6 +66,7 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
                 max_tokens=3000,
                 extra_system=extra_system,
                 language=data.language,
+                user_id=user_id,
             ):
                 full_response += chunk
                 yield f"data: {chunk}\n\n"
@@ -80,6 +87,7 @@ async def topic_summary(data: TopicSummaryRequest, db: AsyncSession = Depends(ge
                 content=full_response,
                 guidance=data.guidance,
                 language=data.language,
+                user_id=user_id,
             )
             db.add(summary)
             await db.commit()
@@ -96,11 +104,12 @@ async def list_topic_summaries(
     course_id: str,
     topic: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List saved topic summaries for a course, optionally filtered by topic."""
     query = (
         select(TopicSummary)
-        .where(TopicSummary.course_id == course_id)
+        .where(TopicSummary.course_id == course_id, TopicSummary.user_id == current_user.id)
         .order_by(TopicSummary.created_at.desc())
     )
     if topic:
@@ -110,7 +119,11 @@ async def list_topic_summaries(
 
 
 @router.delete("/topic-summaries/{summary_id}", status_code=204)
-async def delete_topic_summary(summary_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_topic_summary(
+    summary_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Delete a specific saved topic summary by ID."""
     result = await db.execute(select(TopicSummary).where(TopicSummary.id == summary_id))
     summary = result.scalar_one_or_none()
@@ -126,6 +139,7 @@ async def recommendations(
     course_id: str,
     limit: int = 5,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get personalized study recommendations for a course."""
     recs = await get_recommendations(db, course_id, limit)
@@ -136,8 +150,10 @@ async def recommendations(
 async def recommendation_explanation(
     data: RecommendationExplanationRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Stream a Claude-generated explanation of why a topic is recommended and what to strengthen."""
+    user_id = current_user.id
 
     async def event_generator():
         strength_pct = round(data.strength * 100)
@@ -163,6 +179,7 @@ async def recommendation_explanation(
                 course_id=data.course_id,
                 max_tokens=500,
                 language=data.language,
+                user_id=user_id,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:

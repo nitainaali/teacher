@@ -10,7 +10,7 @@ import {
 import { getChatMessages } from "../api/chat";
 import { getHomeworkSubmission } from "../api/homework";
 import { getExamAnalysis, updateExamAnalysis } from "../api/exams";
-import client from "../api/client";
+import client, { getCurrentUserId } from "../api/client";
 
 type Mode = "general" | "homework" | "exam";
 type ItemType = "general" | "homework" | "exam";
@@ -258,8 +258,10 @@ export function UnifiedChatPage() {
         form.append("mode", hwMode);
         form.append("revelation_level", String(revelationLevel));
 
+        const userId = getCurrentUserId();
         const resp = await fetch(`${API_BASE}/api/homework/check`, {
           method: "POST",
+          headers: userId ? { "X-User-Id": userId } : {},
           body: form,
         });
         if (!resp.ok || !resp.body) throw new Error("Homework check failed");
@@ -351,8 +353,10 @@ export function UnifiedChatPage() {
         if (refExamId) analyzeForm.append("reference_exam_id", refExamId);
         analyzeForm.append("language", lang);
 
+        const userId2 = getCurrentUserId();
         const resp = await fetch(`${API_BASE}/api/exams/${examId}/analyze`, {
           method: "POST",
+          headers: userId2 ? { "X-User-Id": userId2 } : {},
           body: analyzeForm,
         });
         if (!resp.ok || !resp.body) throw new Error("Exam analysis failed");
@@ -465,9 +469,13 @@ export function UnifiedChatPage() {
           ...(contextSeed ? { context_seed: contextSeed } : {}),
         };
 
+        const userId3 = getCurrentUserId();
         const resp = await fetch(`${API_BASE}/api/chat/message`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(userId3 ? { "X-User-Id": userId3 } : {}),
+          },
           body: JSON.stringify(payload),
         });
         if (!resp.ok || !resp.body) throw new Error("Chat request failed");

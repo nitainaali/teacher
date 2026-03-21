@@ -9,9 +9,10 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import Document
+from app.models.models import Document, User
 from app.schemas.schemas import DocumentOut
 from app.services.document_processor import process_document
+from app.api.deps import get_current_user
 from typing import List, Optional
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -33,6 +34,7 @@ async def upload_document(
     course_id: str = Form(...),
     doc_type: str = Form("lecture"),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +101,7 @@ async def list_documents(
     course_id: Optional[str] = None,
     upload_source: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(Document).order_by(Document.created_at.desc())
     if course_id:
@@ -110,7 +113,11 @@ async def list_documents(
 
 
 @router.get("/{doc_id}", response_model=DocumentOut)
-async def get_document(doc_id: str, db: AsyncSession = Depends(get_db)):
+async def get_document(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(Document).where(Document.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
@@ -119,7 +126,11 @@ async def get_document(doc_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{doc_id}", status_code=204)
-async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_document(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(Document).where(Document.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:

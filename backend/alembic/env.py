@@ -10,10 +10,13 @@ from alembic import context
 
 # Import all models so they register with Base.metadata
 from app.models.models import (  # noqa: F401
-    Course, Document, DocumentChunk, Flashcard,
+    User, Course, Document, DocumentChunk, Flashcard,
     QuizSession, QuizQuestion, StudentPerformance,
     ExamUpload, StudentProfile, LearningEvent,
     ChatSession, ChatMessage, ExamDate, PlannedStudySession,
+    StudySession, ReviewLog, FlashcardDeck, TopicSummary,
+    HomeworkSubmission, ExamAnalysisRecord,
+    SharedCourse, SharedDocument, SharedDocumentChunk,
 )
 from app.core.database import Base
 

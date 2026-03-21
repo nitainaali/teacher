@@ -8,7 +8,7 @@ from sqlalchemy import select
 from typing import List, Optional
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import QuizSession, QuizQuestion
+from app.models.models import QuizSession, QuizQuestion, User
 from app.schemas.schemas import (
     QuizGenerateRequest, QuizSessionOut, QuizSessionDetail,
     QuizQuestionOut, QuizSubmitRequest, QuizSessionUpdate,
@@ -16,6 +16,7 @@ from app.schemas.schemas import (
 from app.services.quiz_generator import generate_quiz, grade_quiz, grade_quiz_stream_gen
 from app.services import claude as claude_svc
 from app.services import student_intelligence
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
 
@@ -24,6 +25,7 @@ async def _write_quiz_completion_events(
     db: AsyncSession,
     questions: dict,
     course_id: str,
+    user_id: str = None,
 ) -> None:
     """Write quiz_complete learning events per topic after grading."""
     topic_data: dict[str, dict] = {}
@@ -43,11 +45,16 @@ async def _write_quiz_completion_events(
             course_id=course_id,
             topic=topic,
             details={"score": round(score, 3), "questions_count": data["count"]},
+            user_id=user_id,
         )
 
 
 @router.post("/generate", response_model=QuizSessionOut, status_code=201)
-async def create_quiz(data: QuizGenerateRequest, db: AsyncSession = Depends(get_db)):
+async def create_quiz(
+    data: QuizGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         session = await generate_quiz(
             db=db,
@@ -71,6 +78,7 @@ async def create_quiz(data: QuizGenerateRequest, db: AsyncSession = Depends(get_
 async def list_quizzes(
     course_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(QuizSession).order_by(QuizSession.created_at.desc())
     if course_id:
@@ -80,7 +88,11 @@ async def list_quizzes(
 
 
 @router.get("/{session_id}", response_model=QuizSessionDetail)
-async def get_quiz(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_quiz(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(QuizSession).where(QuizSession.id == session_id)
     )
@@ -109,6 +121,7 @@ async def update_quiz_metadata(
     session_id: str,
     data: QuizSessionUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
     session = result.scalar_one_or_none()
@@ -124,7 +137,11 @@ async def update_quiz_metadata(
 
 
 @router.delete("/{session_id}", status_code=204)
-async def delete_quiz(session_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_quiz(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
@@ -138,6 +155,7 @@ async def submit_quiz(
     session_id: str,
     data: QuizSubmitRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
     session = result.scalar_one_or_none()
@@ -157,6 +175,7 @@ async def grade_quiz_sse(
     session_id: str,
     data: QuizSubmitRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """SSE endpoint: streams per-question grading results as they complete."""
     result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
@@ -176,7 +195,8 @@ async def grade_quiz_sse(
     await db.flush()
 
     # Build system prompt once (DB access before generator starts)
-    system_prompt = await claude_svc.build_system_prompt(db, session.course_id)
+    system_prompt = await claude_svc.build_system_prompt(db, session.course_id, user_id=current_user.id)
+    user_id = current_user.id
 
     async def generate():
         async for event in grade_quiz_stream_gen(db, questions, system_prompt):
@@ -193,7 +213,7 @@ async def grade_quiz_sse(
                 s.completed_at = datetime.now(timezone.utc)
                 # Write per-topic quiz_complete events for diagnosis
                 try:
-                    await _write_quiz_completion_events(save_db, questions, session.course_id)
+                    await _write_quiz_completion_events(save_db, questions, session.course_id, user_id=user_id)
                 except Exception:
                     pass
                 await save_db.commit()

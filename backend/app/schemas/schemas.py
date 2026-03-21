@@ -3,6 +3,52 @@ from typing import Optional, List, Any
 from datetime import datetime, date
 
 
+# ── Users ────────────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    username: str
+
+
+class UserOut(BaseModel):
+    id: str
+    username: str
+    is_admin: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Shared Knowledge ──────────────────────────────────────────────────────────
+
+class SharedCourseCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = "#6b7280"
+
+
+class SharedCourseOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    color: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SharedDocumentOut(BaseModel):
+    id: str
+    shared_course_id: str
+    filename: str
+    original_name: str
+    doc_type: str
+    processing_status: str
+    created_at: datetime
+    metadata_: Optional[dict] = None
+
+    model_config = {"from_attributes": True}
+
+
 # ── Courses ──────────────────────────────────────────────────────────────────
 
 class CourseCreate(BaseModel):
@@ -17,6 +63,10 @@ class CourseUpdate(BaseModel):
     color: Optional[str] = None
 
 
+class ActiveSharedCoursesUpdate(BaseModel):
+    shared_course_ids: List[str]
+
+
 class CourseOut(BaseModel):
     id: str
     name: str
@@ -24,6 +74,7 @@ class CourseOut(BaseModel):
     color: Optional[str]
     sort_order: int = 0
     created_at: datetime
+    active_shared_course_ids: Optional[List[str]] = None
 
     model_config = {"from_attributes": True}
 

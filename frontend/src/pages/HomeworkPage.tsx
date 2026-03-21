@@ -6,6 +6,8 @@ import { HomeworkChat } from "../components/HomeworkChat";
 import { getHomeworkHistory, deleteHomeworkSubmission } from "../api/homework";
 import type { HomeworkSubmission } from "../api/homework";
 
+import { getCurrentUserId } from "../api/client";
+
 const API_BASE = import.meta.env.VITE_API_URL || "";
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB warning threshold
 
@@ -149,8 +151,10 @@ export function HomeworkPage() {
     if (description.trim()) form.append("user_description", description.trim());
 
     try {
+      const userId = getCurrentUserId();
       const response = await fetch(`${API_BASE}/api/homework/check`, {
         method: "POST",
+        headers: userId ? { "X-User-Id": userId } : {},
         body: form,
       });
       if (!response.ok) {

@@ -15,3 +15,6 @@ export const getCourse = (id: string) => client.get<Course>(`/api/courses/${id}`
 
 export const reorderCourses = (ids: string[]) =>
   client.post("/api/courses/reorder", { ids });
+
+export const updateActiveSharedCourses = (courseId: string, sharedCourseIds: string[]) =>
+  client.put<Course>(`/api/courses/${courseId}/active-shared-courses`, { shared_course_ids: sharedCourseIds }).then((r) => r.data);

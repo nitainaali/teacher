@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.database import get_db
-from app.models.models import LearningEvent, QuizSession, HomeworkSubmission, ExamAnalysisRecord, Course
+from app.models.models import LearningEvent, QuizSession, HomeworkSubmission, ExamAnalysisRecord, Course, User
 from app.schemas.schemas import DiagnosisData, DiagnosisStats, TopicKnowledge, ExamTopicWeight
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/diagnosis", tags=["diagnosis"])
 
@@ -33,14 +34,21 @@ MIN_EXAM_DOCS = 3       # require at least 3 distinct exam documents for exam to
 
 
 @router.get("/", response_model=DiagnosisData)
-async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_diagnosis(
+    course_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
 
     # ── 1. Activity stats ─────────────────────────────────────────────────────
 
     fc_q = (
         select(func.count())
         .select_from(LearningEvent)
-        .where(LearningEvent.event_type == "flashcard_session_complete")
+        .where(
+            LearningEvent.event_type == "flashcard_session_complete",
+            LearningEvent.user_id == current_user.id,
+        )
     )
     if course_id:
         fc_q = fc_q.where(LearningEvent.course_id == course_id)
@@ -51,7 +59,11 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
         qz_q = qz_q.where(QuizSession.course_id == course_id)
     quizzes_completed = (await db.execute(qz_q)).scalar() or 0
 
-    hw_q = select(func.count()).select_from(HomeworkSubmission)
+    hw_q = (
+        select(func.count())
+        .select_from(HomeworkSubmission)
+        .where(HomeworkSubmission.user_id == current_user.id)
+    )
     if course_id:
         hw_q = hw_q.where(HomeworkSubmission.course_id == course_id)
     homework_submitted = (await db.execute(hw_q)).scalar() or 0
@@ -93,6 +105,7 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
             .where(
                 LearningEvent.event_type == "document_topic",
                 LearningEvent.topic.isnot(None),
+                LearningEvent.user_id == current_user.id,
             )
             .distinct()
         )
@@ -110,6 +123,7 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
         .where(
             LearningEvent.event_type.in_(list(INTERACTION_TYPES)),
             LearningEvent.topic.isnot(None),
+            LearningEvent.user_id == current_user.id,
         )
     )
     if course_id:
@@ -159,7 +173,10 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
 
     # ── 4. Exam topics by frequency ───────────────────────────────────────────
 
-    exam_q = select(LearningEvent).where(LearningEvent.event_type == "exam_topic")
+    exam_q = select(LearningEvent).where(
+        LearningEvent.event_type == "exam_topic",
+        LearningEvent.user_id == current_user.id,
+    )
     if course_id:
         exam_q = exam_q.where(LearningEvent.course_id == course_id)
     exam_events = (await db.execute(exam_q)).scalars().all()

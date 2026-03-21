@@ -46,6 +46,7 @@ async def send_message_stream(
     source: Optional[str] = None,
     images: Optional[list[str]] = None,
     context_seed: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     session = await get_or_create_session(db, session_id, course_id, knowledge_mode, source=source or "chat")
 
@@ -128,6 +129,7 @@ async def send_message_stream(
         max_tokens=2048,
         extra_system=extra_system,
         language=language,
+        user_id=user_id,
     ):
         full_response += token
         yield token
@@ -144,5 +146,6 @@ async def send_message_stream(
         event_type=event_type,
         course_id=course_id,
         details={"question": message[:200]},
+        user_id=user_id,
     )
     await db.commit()

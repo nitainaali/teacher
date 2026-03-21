@@ -28,8 +28,11 @@ async def build_system_prompt(
     db: AsyncSession,
     course_id: Optional[str] = None,
     language: str = "en",
+    user_id: Optional[str] = None,
 ) -> str:
-    profile_context = await student_intelligence.build_student_context(db, course_id)
+    profile_context = await student_intelligence.build_student_context(
+        db, course_id, user_id=user_id
+    )
     if language == "he":
         lang_instruction = (
             "LANGUAGE: Respond in Hebrew (עברית). "
@@ -51,9 +54,10 @@ async def complete(
     extra_system: Optional[str] = None,
     language: str = "en",
     model: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """Non-streaming Claude completion with student context injected."""
-    system = await build_system_prompt(db, course_id, language=language)
+    system = await build_system_prompt(db, course_id, language=language, user_id=user_id)
     if extra_system:
         system = f"{system}\n\n{extra_system}"
 
@@ -94,9 +98,10 @@ async def stream(
     max_tokens: int = 2048,
     extra_system: Optional[str] = None,
     language: str = "en",
+    user_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """Streaming Claude completion with student context injected."""
-    system = await build_system_prompt(db, course_id, language=language)
+    system = await build_system_prompt(db, course_id, language=language, user_id=user_id)
     if extra_system:
         system = f"{system}\n\n{extra_system}"
 

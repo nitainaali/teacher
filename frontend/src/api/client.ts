@@ -7,4 +7,22 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+let currentUserId: string | null = null;
+
+export function setCurrentUserId(id: string | null) {
+  currentUserId = id;
+}
+
+export function getCurrentUserId(): string | null {
+  return currentUserId;
+}
+
+// Inject X-User-Id header on every axios request
+client.interceptors.request.use((config) => {
+  if (currentUserId) {
+    config.headers["X-User-Id"] = currentUserId;
+  }
+  return config;
+});
+
 export default client;

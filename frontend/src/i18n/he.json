@@ -438,5 +438,33 @@
     "examRefFile": "מבחן עזר (אופציונלי)",
     "inputPlaceholder": "הקלד הודעה...",
     "examWelcome": "**ניתוח מבחן** 📋\n\nצרף את קובץ המבחן למטה, ובתיבת הטקסט תוכל להוסיף:\n- **הנחיות לניתוח** – היבטים ספציפיים שחשוב להתמקד בהם\n- **החוויה שלך** – איך הלך המבחן?\n\nשניהם אופציונליים. לחץ **נתח** כשמוכן."
+  },
+  "login": {
+    "title": "מי אתה?",
+    "subtitle": "בחר משתמש להמשך",
+    "newUser": "משתמש חדש",
+    "usernamePlaceholder": "שם משתמש",
+    "createUser": "צור",
+    "admin": "מנהל",
+    "createError": "שגיאה ביצירת משתמש"
+  },
+  "sharedKnowledge": {
+    "title": "ספריית ידע משותף",
+    "tabLabel": "ספריה משותפת",
+    "libraries": "ספריות",
+    "noLibraries": "אין ספריות משותפות עדיין",
+    "newLibrary": "ספריה חדשה",
+    "libraryName": "שם הספריה",
+    "libraryDescription": "תיאור (אופציונלי)",
+    "deleteLibrary": "מחק ספריה",
+    "selectLibrary": "בחר ספריה מהרשימה לצפייה בקבצים",
+    "uploadDoc": "העלה מסמך",
+    "noDocs": "אין מסמכים בספריה זו עדיין",
+    "loadError": "שגיאה בטעינת ספריות",
+    "createError": "שגיאה ביצירת ספריה",
+    "deleteError": "שגיאה במחיקה",
+    "uploadError": "שגיאה בהעלאה",
+    "activeSources": "מקורות משותפים",
+    "activeSourcesHint": "כלול ספריות אלה בחיפושי RAG עבור קורס זה"
   }
 }

@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.models import ChatSession, ChatMessage, HomeworkSubmission, ExamAnalysisRecord
+from app.models.models import ChatSession, ChatMessage, HomeworkSubmission, ExamAnalysisRecord, User
 from app.schemas.schemas import UnifiedHistoryItem
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/unified", tags=["unified"])
 
@@ -16,6 +17,7 @@ async def get_unified_history(
     course_id: Optional[str] = None,
     type: Optional[str] = Query(None),  # all | general | homework | exam
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Return merged history from chat sessions, homework submissions, and exam analyses."""
     items: List[UnifiedHistoryItem] = []
@@ -52,7 +54,11 @@ async def get_unified_history(
 
     # ── Homework submissions ──────────────────────────────────────────────────
     if type_filter in ("all", "homework"):
-        query = select(HomeworkSubmission).order_by(HomeworkSubmission.created_at.desc())
+        query = (
+            select(HomeworkSubmission)
+            .where(HomeworkSubmission.user_id == current_user.id)
+            .order_by(HomeworkSubmission.created_at.desc())
+        )
         if course_id:
             query = query.where(HomeworkSubmission.course_id == course_id)
         submissions = (await db.execute(query)).scalars().all()

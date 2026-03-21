@@ -10,10 +10,11 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import ExamUpload, Document, ExamAnalysisRecord
+from app.models.models import ExamUpload, Document, ExamAnalysisRecord, User
 from app.schemas.schemas import ExamUploadOut, ExamAnalysisRecordOut
 from app.services.exam_analyzer import analyze_exam_stream
 from app.services.document_processor import _pdf_to_base64_images
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/exams", tags=["exams"])
 
@@ -38,6 +39,7 @@ async def _save_analysis_record(
     reference_exam_name: Optional[str],
     student_exam_name: Optional[str],
     analysis_result: str,
+    user_id: Optional[str] = None,
 ):
     """Save exam analysis in a new DB session (called after streaming)."""
     async with AsyncSessionLocal() as db:
@@ -59,6 +61,7 @@ async def upload_exam(
     exam_type: str = Form("reference"),
     reference_exam_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +106,7 @@ async def analyze_exam(
     reference_exam_id: Optional[str] = Form(None),
     language: str = Form("en"),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Stream full exam analysis as SSE. Returns per-topic feedback in markdown."""
     result = await db.execute(select(ExamUpload).where(ExamUpload.id == exam_id))
@@ -167,7 +171,7 @@ async def analyze_exam(
             full_result = "".join(collected)
             if full_result.strip():
                 background_tasks.add_task(
-                    _save_analysis_record, record_id, course_id, reference_name, student_exam_name, full_result
+                    _save_analysis_record, record_id, course_id, reference_name, student_exam_name, full_result, current_user.id
                 )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -177,6 +181,7 @@ async def analyze_exam(
 async def list_exam_analyses(
     course_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(ExamAnalysisRecord).order_by(ExamAnalysisRecord.created_at.desc())
     if course_id:
@@ -186,7 +191,11 @@ async def list_exam_analyses(
 
 
 @router.get("/analyses/{record_id}", response_model=ExamAnalysisRecordOut)
-async def get_exam_analysis(record_id: str, db: AsyncSession = Depends(get_db)):
+async def get_exam_analysis(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
     )
@@ -201,6 +210,7 @@ async def update_exam_analysis(
     record_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
@@ -216,7 +226,11 @@ async def update_exam_analysis(
 
 
 @router.delete("/analyses/{record_id}", status_code=204)
-async def delete_exam_analysis(record_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_exam_analysis(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
     )
@@ -231,6 +245,7 @@ async def delete_exam_analysis(record_id: str, db: AsyncSession = Depends(get_db
 async def list_exams(
     course_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(ExamUpload).order_by(ExamUpload.created_at.desc())
     if course_id:

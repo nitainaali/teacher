@@ -6,15 +6,26 @@ import anthropic
 from app.core.config import settings
 
 
-async def build_student_context(db: AsyncSession, course_id: Optional[str] = None) -> str:
+async def build_student_context(
+    db: AsyncSession,
+    course_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> str:
     """Build dynamic student context string for injection into Claude system prompt."""
-    profile_result = await db.execute(select(StudentProfile).limit(1))
+    query = select(StudentProfile)
+    if user_id:
+        query = query.where(StudentProfile.user_id == user_id)
+    else:
+        query = query.limit(1)  # fallback for backward compat
+    profile_result = await db.execute(query)
     profile = profile_result.scalar_one_or_none()
 
-    query = select(LearningEvent).order_by(desc(LearningEvent.created_at)).limit(100)
+    events_query = select(LearningEvent).order_by(desc(LearningEvent.created_at)).limit(100)
+    if user_id:
+        events_query = events_query.where(LearningEvent.user_id == user_id)
     if course_id:
-        query = query.where(LearningEvent.course_id == course_id)
-    events_result = await db.execute(query)
+        events_query = events_query.where(LearningEvent.course_id == course_id)
+    events_result = await db.execute(events_query)
     events = events_result.scalars().all()
 
     lines = []
@@ -102,6 +113,7 @@ async def write_learning_event(
     course_id: Optional[str] = None,
     topic: Optional[str] = None,
     details: Optional[dict] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """Write a learning event. Returns event ID for later topic update."""
     event = LearningEvent(
@@ -109,6 +121,7 @@ async def write_learning_event(
         course_id=course_id,
         topic=topic,
         details=details,
+        user_id=user_id,
     )
     db.add(event)
     await db.flush()

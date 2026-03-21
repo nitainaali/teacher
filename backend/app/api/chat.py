@@ -5,15 +5,22 @@ from sqlalchemy import select
 from typing import List
 
 from app.core.database import get_db
-from app.models.models import ChatSession, ChatMessage
+from app.models.models import ChatSession, ChatMessage, User
 from app.schemas.schemas import ChatMessageRequest, ChatSessionOut, ChatMessageOut, ChatSessionWithFirstMessage
 from app.services.chat import send_message_stream
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 @router.post("/message")
-async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
+async def send_message(
+    data: ChatMessageRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
+
     async def event_generator():
         try:
             async for chunk in send_message_stream(
@@ -26,6 +33,7 @@ async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_
                 source=data.source,
                 images=data.images,
                 context_seed=data.context_seed,
+                user_id=user_id,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
@@ -36,7 +44,10 @@ async def send_message(data: ChatMessageRequest, db: AsyncSession = Depends(get_
 
 
 @router.get("/sessions", response_model=List[ChatSessionWithFirstMessage])
-async def list_sessions(db: AsyncSession = Depends(get_db)):
+async def list_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Subquery: first user message content per session
     first_msg_subq = (
         select(ChatMessage.content)
@@ -68,7 +79,11 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageOut])
-async def get_messages(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -78,7 +93,11 @@ async def get_messages(session_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:

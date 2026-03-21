@@ -21,7 +21,15 @@
       "Bash(dir \"C:\\\\Users\\\\nitai\\\\projects\\\\teacher\\\\.claude\\\\worktrees\\\\serene-hoover\\\\frontend\")",
       "Bash(npm install --silent)",
       "Bash(npx vite build)",
-      "Bash(git add -A)"
+      "Bash(git add -A)",
+      "Bash(cat /c/Users/nitai/projects/teacher/.claude/worktrees/lucid-sanderson/backend/alembic/versions/*.py)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" log --oneline master..claude/lucid-sanderson)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" diff --name-only master..claude/lucid-sanderson)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" branch -a)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" log --oneline -5)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" log --oneline claude/lucid-sanderson -5)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher\" diff --name-only claude/lucid-sanderson master)",
+      "Bash(git -C \"C:/Users/nitai/projects/teacher/.claude/worktrees/lucid-sanderson\" status --short)"
     ]
   }
 }

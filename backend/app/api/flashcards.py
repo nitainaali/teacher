@@ -7,7 +7,7 @@ import math
 from datetime import datetime, date, timezone
 
 from app.core.database import get_db
-from app.models.models import Flashcard, FlashcardDeck, Document, StudySession, ReviewLog
+from app.models.models import Flashcard, FlashcardDeck, Document, StudySession, ReviewLog, User
 from app.schemas.schemas import (
     FlashcardOut, FlashcardReviewRequest, FlashcardDeckOut, FlashcardDeckRename,
     FlashcardUpdate, StudySessionCreate, StudySessionOut, NextCardResponse,
@@ -16,6 +16,7 @@ from app.schemas.schemas import (
 from app.services import flashcard_generator as fg
 from app.services.srs import schedule_review
 from app.services import session_policy, student_intelligence, claude
+from app.api.deps import get_current_user
 
 # Models for flashcard generation
 FLASHCARD_MODEL = "claude-sonnet-4-6"
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 async def list_decks(
     course_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(FlashcardDeck)
@@ -40,7 +42,11 @@ async def list_decks(
 
 
 @router.get("/decks/{deck_id}/cards", response_model=List[FlashcardOut])
-async def get_deck_cards(deck_id: str, db: AsyncSession = Depends(get_db)):
+async def get_deck_cards(
+    deck_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(Flashcard).where(Flashcard.deck_id == deck_id).order_by(Flashcard.next_review_date)
     )
@@ -48,7 +54,12 @@ async def get_deck_cards(deck_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/decks/{deck_id}", response_model=FlashcardDeckOut)
-async def rename_deck(deck_id: str, data: FlashcardDeckRename, db: AsyncSession = Depends(get_db)):
+async def rename_deck(
+    deck_id: str,
+    data: FlashcardDeckRename,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
     deck = result.scalar_one_or_none()
     if not deck:
@@ -61,7 +72,11 @@ async def rename_deck(deck_id: str, data: FlashcardDeckRename, db: AsyncSession 
 
 
 @router.delete("/decks/{deck_id}", status_code=204)
-async def delete_deck(deck_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_deck(
+    deck_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
     deck = result.scalar_one_or_none()
     if not deck:
@@ -71,7 +86,11 @@ async def delete_deck(deck_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/decks/{deck_id}/reset", status_code=200)
-async def reset_deck(deck_id: str, db: AsyncSession = Depends(get_db)):
+async def reset_deck(
+    deck_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Reset SRS state for all cards in a deck back to 'new'.
     Preserves review_count, lapse_count, last_rating, first_seen_at (for student diagnosis).
@@ -110,6 +129,7 @@ async def generate(
     guidance: Optional[str] = None,
     language: str = "en",
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     # Fetch all processed non-exam documents for the course
     docs_result = await db.execute(
@@ -144,7 +164,7 @@ async def generate(
     errors: List[str] = []
 
     model = FLASHCARD_MODEL_EASY if difficulty == "easy" else FLASHCARD_MODEL
-    system_prompt = await claude.build_system_prompt(db, course_id, language=language)
+    system_prompt = await claude.build_system_prompt(db, course_id, language=language, user_id=current_user.id)
 
     task_docs: List[Document] = []
     tasks = []
@@ -220,6 +240,7 @@ async def list_flashcards(
     topic: Optional[str] = None,
     deck_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     from sqlalchemy import or_, and_
     from datetime import date
@@ -246,7 +267,12 @@ async def list_flashcards(
 # ── Individual card edit / delete ─────────────────────────────────────────────
 
 @router.put("/{card_id}", response_model=FlashcardOut)
-async def update_card(card_id: str, data: FlashcardUpdate, db: AsyncSession = Depends(get_db)):
+async def update_card(
+    card_id: str,
+    data: FlashcardUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(Flashcard).where(Flashcard.id == card_id))
     card = result.scalar_one_or_none()
     if not card:
@@ -262,7 +288,11 @@ async def update_card(card_id: str, data: FlashcardUpdate, db: AsyncSession = De
 
 
 @router.delete("/{card_id}", status_code=204)
-async def delete_card(card_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_card(
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(select(Flashcard).where(Flashcard.id == card_id))
     card = result.scalar_one_or_none()
     if not card:
@@ -283,6 +313,7 @@ async def review_flashcard(
     card_id: str,
     data: FlashcardReviewRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Legacy single-card review endpoint (no session tracking).
@@ -307,6 +338,7 @@ async def review_flashcard(
         course_id=card.course_id,
         topic=card.topic,
         details={"grade": grade, "stability": round(card.stability or 0.0, 3), "interval": card.interval_days},
+        user_id=current_user.id,
     )
 
     await db.flush()
@@ -321,6 +353,7 @@ async def review_flashcard(
 async def create_session(
     data: StudySessionCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create a new study session.
@@ -348,6 +381,7 @@ async def create_session(
         session_type=data.session_type,
         target_duration_minutes=target_duration,
         card_exposures={},
+        user_id=current_user.id,
     )
     db.add(sess)
     await db.flush()
@@ -360,6 +394,7 @@ async def create_session(
 async def get_next_card(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get the next card to show in the session.
@@ -407,6 +442,7 @@ async def session_review_card(
     session_id: str,
     data: SessionReviewRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Submit a card review during a session.
@@ -458,6 +494,7 @@ async def session_review_card(
             new_due_date=card.next_review_date,
             elapsed_days=sched.elapsed_days,
             mode_used=sess.mode,
+            user_id=current_user.id,
         )
         db.add(log)
 
@@ -483,6 +520,7 @@ async def session_review_card(
             course_id=card.course_id,
             topic=card.topic,
             details={"grade": grade, "stability": round(card.stability or 0.0, 3), "interval": card.interval_days},
+            user_id=current_user.id,
         )
 
     # For one-time sessions: temporarily apply schedule to card object for the response,
@@ -529,6 +567,7 @@ async def session_review_card(
 async def end_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Mark a session as ended and return final stats."""
     sess_result = await db.execute(select(StudySession).where(StudySession.id == session_id))
@@ -564,6 +603,7 @@ async def end_session(
                         course_id=sess.course_id,
                         topic=topic,
                         details={"score": avg, "cards_reviewed": len(scores)},
+                        user_id=current_user.id,
                     )
             except Exception:
                 pass  # never block session end on event-writing failure

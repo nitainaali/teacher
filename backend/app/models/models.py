@@ -15,16 +15,32 @@ def gen_uuid():
     return str(uuid.uuid4())
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    courses: Mapped[list["Course"]] = relationship("Course", back_populates="user")
+    profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False)
+
+
 class Course(Base):
     __tablename__ = "courses"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str | None] = mapped_column(String(20))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     topics_grouped: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    active_shared_course_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
+
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="courses")
 
     documents: Mapped[list["Document"]] = relationship("Document", back_populates="course")
     flashcards: Mapped[list["Flashcard"]] = relationship("Flashcard", back_populates="course")
@@ -129,6 +145,7 @@ class StudySession(Base):
     __tablename__ = "study_sessions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
     deck_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("flashcard_decks.id", ondelete="SET NULL"), nullable=True)
     topic_filter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -160,6 +177,7 @@ class ReviewLog(Base):
     __tablename__ = "review_logs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     session_id: Mapped[str] = mapped_column(String, ForeignKey("study_sessions.id", ondelete="CASCADE"))
     card_id: Mapped[str] = mapped_column(String, ForeignKey("flashcards.id", ondelete="CASCADE"))
     course_id: Mapped[str] = mapped_column(String, nullable=False)
@@ -220,6 +238,7 @@ class StudentPerformance(Base):
     __tablename__ = "student_performance"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     metric_type: Mapped[str] = mapped_column(String(50), nullable=False)  # quiz_score|flashcard_ease|homework_score
@@ -246,6 +265,7 @@ class StudentProfile(Base):
     __tablename__ = "student_profile"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, unique=True)
     field_of_study: Mapped[str | None] = mapped_column(Text)
     institution: Mapped[str | None] = mapped_column(Text)
     year_of_study: Mapped[int | None] = mapped_column(Integer)
@@ -254,11 +274,14 @@ class StudentProfile(Base):
     style_notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="profile")
+
 
 class LearningEvent(Base):
     __tablename__ = "learning_events"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="SET NULL"))
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     topic: Mapped[str | None] = mapped_column(Text)
@@ -299,6 +322,7 @@ class TopicSummary(Base):
     __tablename__ = "topic_summaries"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -311,6 +335,7 @@ class HomeworkSubmission(Base):
     __tablename__ = "homework_submissions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
     user_description: Mapped[str | None] = mapped_column(Text)
     filenames: Mapped[list | None] = mapped_column(JSONB)  # list of original filenames
@@ -359,3 +384,54 @@ class PlannedStudySession(Base):
     planned_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     actual_duration_minutes: Mapped[int | None] = mapped_column(Integer)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ─── Shared Knowledge Library ───────────────────────────────────────────────
+
+class SharedCourse(Base):
+    """Admin-managed global knowledge collection (e.g. 'Signals 101')."""
+    __tablename__ = "shared_courses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    color: Mapped[str | None] = mapped_column(String(20), default="#6b7280")
+    created_by: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    documents: Mapped[list["SharedDocument"]] = relationship("SharedDocument", back_populates="shared_course", cascade="all, delete-orphan")
+
+
+class SharedDocument(Base):
+    """A document uploaded to the shared knowledge library."""
+    __tablename__ = "shared_documents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    shared_course_id: Mapped[str] = mapped_column(String, ForeignKey("shared_courses.id", ondelete="CASCADE"))
+    uploaded_by: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    original_name: Mapped[str] = mapped_column(Text, nullable=False)
+    doc_type: Mapped[str] = mapped_column(String(50), nullable=False, default="lecture")
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    extracted_text: Mapped[str | None] = mapped_column(Text)
+    processing_status: Mapped[str] = mapped_column(String(20), default="pending")
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB)
+
+    shared_course: Mapped["SharedCourse"] = relationship("SharedCourse", back_populates="documents")
+    chunks: Mapped[list["SharedDocumentChunk"]] = relationship("SharedDocumentChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class SharedDocumentChunk(Base):
+    """Embedding chunk for a shared document — used in RAG searches."""
+    __tablename__ = "shared_document_chunks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    shared_document_id: Mapped[str] = mapped_column(String, ForeignKey("shared_documents.id", ondelete="CASCADE"))
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(384))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    document: Mapped["SharedDocument"] = relationship("SharedDocument", back_populates="chunks")

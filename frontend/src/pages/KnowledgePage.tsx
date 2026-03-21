@@ -2,8 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getDocuments, uploadDocument, deleteDocument } from "../api/documents";
+import { getCourse, updateActiveSharedCourses } from "../api/courses";
+import { getSharedCourses } from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
 import type { Document } from "../types";
+import type { SharedCourse } from "../api/sharedKnowledge";
 
 const DOC_TYPES = ["lecture", "summary", "exam", "transcript", "reference"] as const;
 type DocType = typeof DOC_TYPES[number];
@@ -48,12 +51,42 @@ export function KnowledgePage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Shared courses
+  const [sharedCourses, setSharedCourses] = useState<SharedCourse[]>([]);
+  const [activeSharedIds, setActiveSharedIds] = useState<string[]>([]);
+  const [sharedPanelOpen, setSharedPanelOpen] = useState(false);
+
   const fetchDocs = () => {
     if (!courseId) return;
     getDocuments(courseId, "knowledge").then(setDocs);
   };
 
   useEffect(() => { fetchDocs(); }, [courseId]);
+
+  useEffect(() => {
+    getSharedCourses().then(setSharedCourses).catch(() => setSharedCourses([]));
+  }, []);
+
+  useEffect(() => {
+    if (!courseId) return;
+    getCourse(courseId)
+      .then((c) => setActiveSharedIds(c.active_shared_course_ids ?? []))
+      .catch(() => setActiveSharedIds([]));
+  }, [courseId]);
+
+  const toggleSharedCourse = async (id: string) => {
+    if (!courseId) return;
+    const next = activeSharedIds.includes(id)
+      ? activeSharedIds.filter((x) => x !== id)
+      : [...activeSharedIds, id];
+    setActiveSharedIds(next);
+    try {
+      await updateActiveSharedCourses(courseId, next);
+    } catch {
+      // revert on error
+      setActiveSharedIds(activeSharedIds);
+    }
+  };
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
@@ -236,6 +269,45 @@ export function KnowledgePage() {
               ? `${t("common.upload")} (${pendingCount})`
               : t("common.upload")}
           </button>
+
+          {/* Shared knowledge sources */}
+          {sharedCourses.length > 0 && (
+            <div className="border-t border-gray-700 pt-3">
+              <button
+                onClick={() => setSharedPanelOpen((v) => !v)}
+                className="w-full flex items-center justify-between text-xs font-semibold text-gray-400 hover:text-gray-200 transition-colors mb-1"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span>🔗</span>
+                  <span>{t("sharedKnowledge.activeSources")}</span>
+                  {activeSharedIds.length > 0 && (
+                    <span className="bg-blue-600/30 text-blue-400 rounded-full px-1.5 py-0.5">
+                      {activeSharedIds.length}
+                    </span>
+                  )}
+                </span>
+                <span>{sharedPanelOpen ? "▾" : "▸"}</span>
+              </button>
+              {sharedPanelOpen && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-500">{t("sharedKnowledge.activeSourcesHint")}</p>
+                  {sharedCourses.map((sc) => (
+                    <label key={sc.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={activeSharedIds.includes(sc.id)}
+                        onChange={() => toggleSharedCourse(sc.id)}
+                        className="w-3.5 h-3.5 rounded border-gray-500 bg-gray-700 accent-blue-500"
+                      />
+                      <span className="text-xs text-gray-300 group-hover:text-white transition-colors truncate">
+                        {sc.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right panel — Uploaded file list */}

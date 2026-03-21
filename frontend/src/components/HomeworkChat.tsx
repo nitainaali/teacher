@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
 import { updateHomeworkChat } from "../api/homework";
+import { getCurrentUserId } from "../api/client";
 import type { ChatMessage } from "../api/homework";
 
 interface HomeworkChatProps {
@@ -76,9 +77,13 @@ export function HomeworkChat({
         ? contextImagesB64
         : undefined;
 
+      const userId = getCurrentUserId();
       const response = await fetch(`${API_BASE}/api/chat/message`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
         body: JSON.stringify({
           message: fullMessage,
           session_id: sessionId,
@@ -129,7 +134,9 @@ export function HomeworkChat({
       const resolvedSessionId = newSessionId || sessionId;
       if (resolvedSessionId) {
         try {
-          const msgRes = await fetch(`${API_BASE}/api/chat/sessions/${resolvedSessionId}/messages`);
+          const msgRes = await fetch(`${API_BASE}/api/chat/sessions/${resolvedSessionId}/messages`, {
+            headers: userId ? { "X-User-Id": userId } : {},
+          });
           if (msgRes.ok) {
             const msgs = (await msgRes.json()) as Array<{ role: string; content: string }>;
             const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");

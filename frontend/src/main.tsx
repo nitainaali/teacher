@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./i18n";
 import "./index.css";
 import { GenerationProvider } from "./context/GenerationContext";
+import { UserProvider, useUser } from "./context/UserContext";
 import { AppLayout, PlainPageLayout } from "./components/layout/AppLayout";
 import { CourseLayout } from "./components/layout/CourseLayout";
 import { WelcomePage } from "./pages/WelcomePage";
@@ -16,10 +17,17 @@ import { QuizDetailPage } from "./pages/QuizDetailPage";
 import { UnifiedChatPage } from "./pages/UnifiedChatPage";
 import { DiagnosisPage } from "./pages/DiagnosisPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SharedKnowledgePage } from "./pages/SharedKnowledgePage";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <GenerationProvider>
+function AppRoutes() {
+  const { currentUser } = useUser();
+
+  if (!currentUser) {
+    return <LoginPage />;
+  }
+
+  return (
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
@@ -51,9 +59,28 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               </PlainPageLayout>
             }
           />
+
+          {/* Shared Knowledge Library (admin only) */}
+          <Route
+            path="shared-knowledge"
+            element={
+              <PlainPageLayout>
+                <SharedKnowledgePage />
+              </PlainPageLayout>
+            }
+          />
         </Route>
       </Routes>
     </BrowserRouter>
-    </GenerationProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <UserProvider>
+      <GenerationProvider>
+        <AppRoutes />
+      </GenerationProvider>
+    </UserProvider>
   </React.StrictMode>
 );

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getRecommendations } from "../api/learning";
 import { MarkdownContent } from "./MarkdownContent";
+import { getCurrentUserId } from "../api/client";
 import type { Recommendation } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -56,9 +57,13 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
     abortRef.current = new AbortController();
 
     try {
+      const userId = getCurrentUserId();
       const response = await fetch(`${API_BASE}/api/learning/recommendation-explanation`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
         body: JSON.stringify({
           course_id: courseId,
           topic: rec.topic,

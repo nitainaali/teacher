@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import client from "../api/client";
+import client, { getCurrentUserId } from "../api/client";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { getTopicSummaries, deleteTopicSummary } from "../api/learning";
 import { getDocuments } from "../api/documents";
@@ -141,9 +141,13 @@ export function TopicSummaryPage() {
     setStreaming(true);
 
     try {
+      const userId = getCurrentUserId();
       const response = await fetch(`${API_BASE}/api/learning/topic-summary`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
         body: JSON.stringify({
           course_id: courseId,
           topic,

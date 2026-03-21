@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import HomeworkSubmission
+from app.models.models import HomeworkSubmission, User
 from app.schemas.schemas import HomeworkSubmissionOut
 from app.services.homework_checker import check_homework_stream
 from app.services.document_processor import pdf_pages_to_base64
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/homework", tags=["homework"])
 
@@ -32,6 +33,7 @@ async def _save_submission(
     filenames: List[str],
     analysis_result: str,
     images_b64: Optional[List[str]] = None,
+    user_id: Optional[str] = None,
 ):
     """Save homework submission in a new DB session (called after streaming)."""
     score_text = _extract_score(analysis_result)
@@ -53,6 +55,7 @@ async def _save_submission(
             analysis_result=analysis_result,
             score_text=score_text,
             images_b64=saved_images,
+            user_id=user_id,
         )
         db.add(sub)
         await db.commit()
@@ -68,6 +71,7 @@ async def check_homework(
     mode: str = Form("check"),
     revelation_level: int = Form(1),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     images_b64: list[str] = []
     filenames: list[str] = []
@@ -92,6 +96,7 @@ async def check_homework(
 
     # Pre-generate submission ID so frontend can reference it via SSE marker
     submission_id = str(uuid.uuid4())
+    user_id = current_user.id
 
     async def event_generator():
         collected: list[str] = []
@@ -100,7 +105,7 @@ async def check_homework(
             async for token in check_homework_stream(
                 images_b64, course_id, knowledge_mode, db,
                 language=language, user_description=user_description,
-                mode=mode, revelation_level=revelation_level,
+                mode=mode, revelation_level=revelation_level, user_id=user_id,
             ):
                 collected.append(token)
                 yield f"data: {token.replace(chr(10), chr(92) + 'n')}\n\n"
@@ -114,7 +119,7 @@ async def check_homework(
             full_result = "".join(collected)
             if full_result.strip():
                 await _save_submission(
-                    submission_id, course_id, user_description, filenames, full_result, images_b64
+                    submission_id, course_id, user_description, filenames, full_result, images_b64, user_id=user_id
                 )
                 yield f"data: [SUBMISSION_ID:{submission_id}]\n\n"
         yield "data: [DONE]\n\n"
@@ -126,8 +131,13 @@ async def check_homework(
 async def list_homework_history(
     course_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    query = select(HomeworkSubmission).order_by(HomeworkSubmission.created_at.desc())
+    query = (
+        select(HomeworkSubmission)
+        .where(HomeworkSubmission.user_id == current_user.id)
+        .order_by(HomeworkSubmission.created_at.desc())
+    )
     if course_id:
         query = query.where(HomeworkSubmission.course_id == course_id)
     result = await db.execute(query)
@@ -135,7 +145,11 @@ async def list_homework_history(
 
 
 @router.get("/history/{submission_id}", response_model=HomeworkSubmissionOut)
-async def get_homework_submission(submission_id: str, db: AsyncSession = Depends(get_db)):
+async def get_homework_submission(
+    submission_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
     )
@@ -150,6 +164,7 @@ async def update_homework_submission(
     submission_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
@@ -167,7 +182,11 @@ async def update_homework_submission(
 
 
 @router.delete("/history/{submission_id}", status_code=204)
-async def delete_homework_submission(submission_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_homework_submission(
+    submission_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
     )

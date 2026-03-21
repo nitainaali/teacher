@@ -4,6 +4,7 @@ export interface Course {
   description: string | null;
   color: string | null;
   created_at: string;
+  active_shared_course_ids: string[];
 }
 
 export interface Document {

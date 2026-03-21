@@ -5,14 +5,19 @@ from datetime import date
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.models.models import Document, Flashcard, QuizSession, LearningEvent
+from app.models.models import Document, Flashcard, QuizSession, LearningEvent, User
 from app.schemas.schemas import ProgressStats, TopicPerformance
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
 
 
 @router.get("/", response_model=ProgressStats)
-async def get_progress(course_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_progress(
+    course_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc_q = select(func.count()).select_from(Document)
     card_q = select(func.count()).select_from(Flashcard)
     due_q = select(func.count()).select_from(Flashcard).where(Flashcard.next_review_date <= date.today())
@@ -42,7 +47,11 @@ async def get_progress(course_id: Optional[str] = None, db: AsyncSession = Depen
 
 
 @router.get("/topics", response_model=List[TopicPerformance])
-async def get_topic_performance(course_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_topic_performance(
+    course_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Exclude homework and exam events — only real study interactions should appear as topic suggestions
     excluded_event_types = [
         "homework_check", "homework_error", "homework_correct", "homework_review",
@@ -57,6 +66,7 @@ async def get_topic_performance(course_id: Optional[str] = None, db: AsyncSessio
         .where(
             LearningEvent.topic.isnot(None),
             ~LearningEvent.event_type.in_(excluded_event_types),
+            LearningEvent.user_id == current_user.id,
         )
     )
     if course_id:

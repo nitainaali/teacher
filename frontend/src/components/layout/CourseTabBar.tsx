@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { getCourses, createCourse, updateCourse, reorderCourses } from "../../api/courses";
 import type { Course } from "../../types";
 import { setLanguage } from "../../i18n";
+import { useUser } from "../../context/UserContext";
 
 const COLOR_OPTIONS = [
   "#3b82f6",
@@ -18,6 +19,7 @@ export function CourseTabBar() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { courseId } = useParams<{ courseId: string }>();
+  const { currentUser } = useUser();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -274,6 +276,18 @@ export function CourseTabBar() {
           >
             +
           </button>
+
+          {/* Shared Library tab — admin only */}
+          {currentUser?.is_admin && (
+            <button
+              onClick={() => navigate("/shared-knowledge")}
+              className="flex items-center gap-1.5 px-3 h-full text-sm whitespace-nowrap transition-colors border-b-2 text-gray-400 hover:bg-gray-700 hover:text-white border-transparent shrink-0"
+              title={t("sharedKnowledge.title")}
+            >
+              <span className="text-xs">🔗</span>
+              <span>{t("sharedKnowledge.tabLabel")}</span>
+            </button>
+          )}
         </div>
 
         {/* Language toggle */}

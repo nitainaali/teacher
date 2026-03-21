@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getQuiz } from "../api/quizzes";
 import { MarkdownContent } from "../components/MarkdownContent";
+import { getCurrentUserId } from "../api/client";
 import type { QuizSessionDetail, QuizQuestion } from "../types";
 
 type QuizPhase = "taking" | "grading" | "done";
@@ -61,9 +62,13 @@ export function QuizDetailPage() {
     setPhase("grading");
 
     try {
+      const userId = getCurrentUserId();
       const resp = await fetch(`/api/quizzes/${id}/grade-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
         body: JSON.stringify({
           answers: quiz.questions.map((q) => ({
             question_id: q.id,
