@@ -241,7 +241,11 @@ def _schedule_learning_step(
         }
 
     # grade == 3 (Good) — advance to next step
-    next_step = (current_step if current_step is not None else -1) + 1
+    # Brand-new cards (current_step=None) skip step 0 and jump directly to step 1
+    if current_step is None:
+        next_step = 1  # new card + Good → skip first 1-min step
+    else:
+        next_step = current_step + 1
     if next_step < len(steps):
         # Still in learning steps
         next_at = now + timedelta(minutes=steps[next_step])

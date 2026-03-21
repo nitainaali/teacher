@@ -118,8 +118,11 @@ export function predictIntervals(card: Flashcard): PredictedIntervals {
     const hardStr = formatMins(LEARNING_STEPS_MINUTES[0]);
 
     // Good → next step or graduate
+    // For brand-new cards (state="new", step=null), skip step 0 → jump to step 1
     let goodStr: string;
-    const nextStep = (step !== null && step !== undefined ? step : -1) + 1;
+    const nextStep = state === "new" && step === null
+      ? 1
+      : (step !== null && step !== undefined ? step : -1) + 1;
     if (nextStep < LEARNING_STEPS_MINUTES.length) {
       goodStr = formatMins(LEARNING_STEPS_MINUTES[nextStep]);
     } else {

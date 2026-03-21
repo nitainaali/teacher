@@ -9,6 +9,7 @@ import {
   renameDeck,
   deleteDeck,
   resetDeck,
+  getDeckCards,
   createSession,
   getNextCard,
   sessionReviewCard,
@@ -17,7 +18,7 @@ import {
 import type { FlashcardDeck, SessionType } from "../api/flashcards";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { RecommendationsPanel } from "../components/RecommendationsPanel";
-import type { Flashcard, StudyMode, StudyIntent, SessionStats } from "../types";
+import type { Flashcard, StudyMode, SessionStats } from "../types";
 import { useGeneration, STORAGE_KEY } from "../context/GenerationContext";
 import { predictIntervals } from "../utils/fsrsPredict";
 
@@ -46,12 +47,6 @@ const STUDY_MODES: { mode: StudyMode; icon: string; titleKey: string; descKey: s
   { mode: "COVERAGE_FIRST", icon: "📋", titleKey: "flashcards.modeCoverage", descKey: "flashcards.modeCoverageDesc" },
 ];
 
-const STUDY_INTENTS: { intent: StudyIntent; icon: string; titleKey: string; descKey: string }[] = [
-  { intent: "QUICK_REFRESH", icon: "⚡", titleKey: "flashcards.intentQuick", descKey: "flashcards.intentQuickDesc" },
-  { intent: "NORMAL_STUDY", icon: "📚", titleKey: "flashcards.intentNormal", descKey: "flashcards.intentNormalDesc" },
-  { intent: "DEEP_MEMORIZATION", icon: "🧠", titleKey: "flashcards.intentDeep", descKey: "flashcards.intentDeepDesc" },
-];
-
 export function FlashcardsPage() {
   const { t, i18n } = useTranslation();
   const { courseId } = useParams<{ courseId: string }>();
@@ -61,7 +56,6 @@ export function FlashcardsPage() {
 
   // ── Session state (backend-driven) ────────────────────────────────────────
   const [selectedMode, setSelectedMode] = useState<StudyMode>("HYBRID");
-  const [selectedIntent, setSelectedIntent] = useState<StudyIntent>("NORMAL_STUDY");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentCard, setCurrentCard] = useState<Flashcard | null>(null);
   const [cardsRemaining, setCardsRemaining] = useState(0);
@@ -96,6 +90,10 @@ export function FlashcardsPage() {
 
   // ── One-time session state ────────────────────────────────────────────────
   const [isOneTimeSession, setIsOneTimeSession] = useState(false);
+  const [showOneTimeOptions, setShowOneTimeOptions] = useState(false);
+
+  // ── Anki-style deck card counters (new / learning / review) ──────────────
+  const [deckCardStats, setDeckCardStats] = useState({ new: 0, learning: 0, review: 0 });
 
   // ── Reset deck confirmation dialog ────────────────────────────────────────
   const [resetConfirmDeck, setResetConfirmDeck] = useState<FlashcardDeck | null>(null);
@@ -279,7 +277,7 @@ export function FlashcardsPage() {
 
   // ── Session management ────────────────────────────────────────────────────
 
-  const handleStartDeck = (deck: FlashcardDeck) => {
+  const handleStartDeck = async (deck: FlashcardDeck) => {
     setActiveDeck(deck);
     setSessionId(null);
     setCurrentCard(null);
@@ -289,16 +287,29 @@ export function FlashcardsPage() {
     setLastNextReviewAt(null);
     setPendingAdvance(null);
     setSelectedMode("HYBRID");
-    setSelectedIntent("NORMAL_STUDY");
     setIsOneTimeSession(false);
+    setShowOneTimeOptions(false);
+    setDeckCardStats({ new: 0, learning: 0, review: 0 });
     setSessionStats({ cards_seen_count: 0, new_cards_seen_count: 0, review_cards_seen_count: 0, failed_cards_count: 0 });
     setMode("mode_select");
+    // Fetch deck cards to compute Anki-style counters (blue/orange/green)
+    try {
+      const cards = await getDeckCards(deck.id);
+      const today = new Date().toISOString().split("T")[0];
+      setDeckCardStats({
+        new: cards.filter(c => c.fsrs_state === "new").length,
+        learning: cards.filter(c => c.fsrs_state === "learning").length,
+        review: cards.filter(
+          c => (c.fsrs_state === "review" || c.fsrs_state === "relearning") && c.next_review_date <= today
+        ).length,
+      });
+    } catch { /* silently ignore */ }
   };
 
   const handleStartSession = async (sessionType: SessionType = "normal") => {
     if (!activeDeck || !courseId) return;
     try {
-      const sess = await createSession(courseId, activeDeck.id, selectedMode, selectedIntent, undefined, sessionType);
+      const sess = await createSession(courseId, activeDeck.id, selectedMode, "NORMAL_STUDY", undefined, sessionType);
       setIsOneTimeSession(sessionType !== "normal");
       setSessionId(sess.id);
       // Fetch the first card
@@ -473,26 +484,6 @@ export function FlashcardsPage() {
           ))}
         </div>
 
-        {/* Intent selection */}
-        <h3 className="text-sm font-semibold text-gray-300 mb-2">{t("flashcards.selectIntent")}</h3>
-        <div className="flex gap-2 mb-6">
-          {STUDY_INTENTS.map(({ intent, icon, titleKey, descKey }) => (
-            <button
-              key={intent}
-              onClick={() => setSelectedIntent(intent)}
-              title={t(descKey)}
-              className={`flex-1 py-2.5 px-2 rounded-lg text-sm transition-colors border flex flex-col items-center gap-1 ${
-                selectedIntent === intent
-                  ? "bg-blue-900/40 border-blue-500 text-blue-300"
-                  : "bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300 hover:text-white"
-              }`}
-            >
-              <span className="text-lg">{icon}</span>
-              <span className="font-medium text-xs leading-tight text-center">{t(titleKey)}</span>
-            </button>
-          ))}
-        </div>
-
         <button
           onClick={() => handleStartSession("normal")}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-colors"
@@ -500,23 +491,31 @@ export function FlashcardsPage() {
           {t("common.start")}
         </button>
 
-        {/* One-time session (dry-run) */}
+        {/* One-time session (dry-run) — collapsible */}
         <div className="mt-4 pt-4 border-t border-gray-700">
-          <p className="text-xs text-gray-500 mb-2">{t("flashcards.oneTimeSession")}</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleStartSession("one_time_all")}
-              className="flex-1 py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded-lg border border-gray-600 transition-colors"
-            >
-              ↻ {t("flashcards.oneTimeAll")}
-            </button>
-            <button
-              onClick={() => handleStartSession("one_time_learning")}
-              className="flex-1 py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded-lg border border-gray-600 transition-colors"
-            >
-              ↻ {t("flashcards.onlyLearning")}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowOneTimeOptions(v => !v)}
+            className="w-full py-2.5 px-4 bg-gray-700/60 hover:bg-gray-700 border border-amber-700/40 text-amber-400/80 hover:text-amber-300 text-sm rounded-lg transition-colors flex items-center justify-between"
+          >
+            <span>↻ {t("flashcards.oneTimeSession")}</span>
+            <span className="text-xs opacity-60">{showOneTimeOptions ? "▲" : "▼"}</span>
+          </button>
+          {showOneTimeOptions && (
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => handleStartSession("one_time_all")}
+                className="flex-1 py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded-lg border border-gray-600 transition-colors"
+              >
+                ↻ {t("flashcards.oneTimeAll")}
+              </button>
+              <button
+                onClick={() => handleStartSession("one_time_learning")}
+                className="flex-1 py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded-lg border border-gray-600 transition-colors"
+              >
+                ↻ {t("flashcards.onlyLearning")}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -577,18 +576,16 @@ export function FlashcardsPage() {
           </div>
         ) : (
           <div>
-            {/* Session stats bar */}
-            {totalSeen > 0 && (
-              <div className="flex gap-3 text-xs mb-2">
-                {sessionStats.new_cards_seen_count > 0 && (
-                  <span className="text-blue-400">New: {sessionStats.new_cards_seen_count}</span>
-                )}
-                {sessionStats.review_cards_seen_count > 0 && (
-                  <span className="text-green-400">Review: {sessionStats.review_cards_seen_count}</span>
-                )}
-                {sessionStats.failed_cards_count > 0 && (
-                  <span className="text-red-400">{t("flashcards.quality.again")}: {sessionStats.failed_cards_count}</span>
-                )}
+            {/* Anki-style 3-category counters (blue=new, orange=learning, green=review) */}
+            {(deckCardStats.new > 0 || deckCardStats.learning > 0 || deckCardStats.review > 0) && (
+              <div className="flex gap-3 text-xs font-mono mb-2">
+                <span className="text-blue-400">
+                  {Math.max(0, deckCardStats.new - (sessionStats.new_cards_seen_count || 0))}
+                </span>
+                <span className="text-orange-400">{deckCardStats.learning}</span>
+                <span className="text-green-400">
+                  {Math.max(0, deckCardStats.review - (sessionStats.review_cards_seen_count || 0))}
+                </span>
               </div>
             )}
 

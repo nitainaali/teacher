@@ -15,8 +15,35 @@ from app.schemas.schemas import (
 )
 from app.services.quiz_generator import generate_quiz, grade_quiz, grade_quiz_stream_gen
 from app.services import claude as claude_svc
+from app.services import student_intelligence
 
 router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
+
+
+async def _write_quiz_completion_events(
+    db: AsyncSession,
+    questions: dict,
+    course_id: str,
+) -> None:
+    """Write quiz_complete learning events per topic after grading."""
+    topic_data: dict[str, dict] = {}
+    for q in questions.values():
+        topic = q.topic or "כללי"
+        if topic not in topic_data:
+            topic_data[topic] = {"earned": 0.0, "possible": 0.0, "count": 0}
+        topic_data[topic]["earned"] += q.points_earned or 0.0
+        topic_data[topic]["possible"] += q.points_possible or 1.0
+        topic_data[topic]["count"] += 1
+
+    for topic, data in topic_data.items():
+        score = data["earned"] / data["possible"] if data["possible"] > 0 else 0.0
+        await student_intelligence.write_learning_event(
+            db=db,
+            event_type="quiz_complete",
+            course_id=course_id,
+            topic=topic,
+            details={"score": round(score, 3), "questions_count": data["count"]},
+        )
 
 
 @router.post("/generate", response_model=QuizSessionOut, status_code=201)
@@ -164,6 +191,11 @@ async def grade_quiz_sse(
             if s:
                 s.score = final_score
                 s.completed_at = datetime.now(timezone.utc)
+                # Write per-topic quiz_complete events for diagnosis
+                try:
+                    await _write_quiz_completion_events(save_db, questions, session.course_id)
+                except Exception:
+                    pass
                 await save_db.commit()
         yield f"data: {json.dumps({'type': 'complete', 'score': final_score})}\n\n"
 

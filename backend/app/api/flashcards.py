@@ -538,6 +538,36 @@ async def end_session(
 
     if sess.ended_at is None:
         sess.ended_at = datetime.now(timezone.utc)
+
+        # ── Write per-topic completion events (normal sessions only) ──────────
+        # Rating → score mapping: Again=0.0, Hard=0.5, Good=1.0, Easy=1.0
+        RATING_SCORE = {1: 0.0, 2: 0.5, 3: 1.0, 4: 1.0}
+        is_one_time = sess.session_type in ("one_time_all", "one_time_learning")
+        if not is_one_time and sess.card_exposures:
+            try:
+                review_result = await db.execute(
+                    select(ReviewLog, Flashcard)
+                    .join(Flashcard, ReviewLog.card_id == Flashcard.id)
+                    .where(ReviewLog.session_id == session_id)
+                )
+                topic_ratings: dict[str, list[float]] = {}
+                for log, card in review_result.all():
+                    topic = card.topic or "כללי"
+                    topic_ratings.setdefault(topic, []).append(
+                        RATING_SCORE.get(log.rating, 0.5)
+                    )
+                for topic, scores in topic_ratings.items():
+                    avg = round(sum(scores) / len(scores), 3)
+                    await student_intelligence.write_learning_event(
+                        db=db,
+                        event_type="flashcard_session_complete",
+                        course_id=sess.course_id,
+                        topic=topic,
+                        details={"score": avg, "cards_reviewed": len(scores)},
+                    )
+            except Exception:
+                pass  # never block session end on event-writing failure
+
         await db.flush()
         await db.refresh(sess)
         await db.commit()

@@ -1,8 +1,47 @@
+import anthropic
 from typing import Optional, AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import claude, rag, student_intelligence
+from app.core.config import settings
+
+
+async def _extract_homework_topic(
+    full_response: str,
+    user_description: Optional[str],
+) -> str:
+    """Extract a single Hebrew topic from the homework content using Claude Haiku."""
+    desc_part = user_description[:300] if user_description else ""
+    analysis_part = full_response[:400]
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=30,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Based on this homework problem, what is the engineering/math topic? "
+                    "Return a short topic name in Hebrew (עברית), 2-4 words only.\n\n"
+                    f"Problem description: {desc_part}\n"
+                    f"AI feedback beginning: {analysis_part}"
+                ),
+            }],
+        )
+        return response.content[0].text.strip() or "כללי"
+    except Exception:
+        return "כללי"
+
+
+def _homework_score(analysis_text: str) -> float:
+    """Parse the homework AI analysis to determine a 0.0–1.0 performance score."""
+    lower = analysis_text.lower()
+    if "partially correct" in lower or "חלקית" in lower:
+        return 0.5
+    if any(phrase in lower for phrase in ["incorrect", "שגוי", "לא נכון", " wrong"]):
+        return 0.0
+    return 1.0  # default: assume correct if no failure signal
 
 
 # ── Prompts — one per logical mode ────────────────────────────────────────────
@@ -80,7 +119,7 @@ async def check_homework_stream(
         full_response += token
         yield token
 
-    # Write learning event
+    # Write learning event (backward-compat: kept for recommendations engine)
     event_type = "homework_check" if mode == "check" else "homework_help"
     try:
         await student_intelligence.write_learning_event(
@@ -89,6 +128,17 @@ async def check_homework_stream(
             course_id=course_id,
             details={"revelation_level": revelation_level} if mode == "help" else {},
         )
+        # Write homework_complete diagnosis event only for actual check submissions
+        if mode == "check":
+            topic = await _extract_homework_topic(full_response, user_description)
+            score = _homework_score(full_response)
+            await student_intelligence.write_learning_event(
+                db=db,
+                event_type="homework_complete",
+                course_id=course_id,
+                topic=topic,
+                details={"score": score},
+            )
         await db.commit()
     except Exception:
         pass

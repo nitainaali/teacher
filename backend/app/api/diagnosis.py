@@ -19,16 +19,16 @@ from app.schemas.schemas import DiagnosisData, DiagnosisStats, TopicKnowledge, E
 
 router = APIRouter(prefix="/api/diagnosis", tags=["diagnosis"])
 
-# Performance events and their weights for knowledge level estimation.
-PERFORMANCE_WEIGHTS: dict[str, float] = {
-    "flashcard_easy":  +1.0,
-    "flashcard_hard":  +0.3,
-    "quiz_correct":    +2.0,
-    "quiz_wrong":      -2.0,
-    "homework_error":  -1.5,
+# Interaction event types that count toward the knowledge-level threshold.
+# Each event has a 0.0–1.0 score in details["score"].
+INTERACTION_TYPES = {
+    "flashcard_session_complete",
+    "quiz_complete",
+    "homework_complete",
+    "exam_analysis_complete",
 }
 
-MIN_INTERACTIONS = 3    # require at least 3 performance events to show knowledge level
+MIN_INTERACTIONS = 3    # require at least 3 completed interactions to show knowledge level
 MIN_EXAM_DOCS = 3       # require at least 3 distinct exam documents for exam topic ranking
 
 
@@ -40,7 +40,7 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
     fc_q = (
         select(func.count())
         .select_from(LearningEvent)
-        .where(LearningEvent.event_type.in_(["flashcard_easy", "flashcard_hard"]))
+        .where(LearningEvent.event_type == "flashcard_session_complete")
     )
     if course_id:
         fc_q = fc_q.where(LearningEvent.course_id == course_id)
@@ -101,12 +101,14 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
         doc_topic_rows = (await db.execute(doc_topic_q)).all()
         document_topics = {row[0] for row in doc_topic_rows}
 
-    # ── 3. Performance events for knowledge level ─────────────────────────────
+    # ── 3. Interaction events for knowledge level ─────────────────────────────
+    # Each completion event stores a 0.0–1.0 score in details["score"].
+    # knowledge_level = mean(score) over all interactions for that topic.
 
     perf_q = (
         select(LearningEvent)
         .where(
-            LearningEvent.event_type.in_(list(PERFORMANCE_WEIGHTS.keys())),
+            LearningEvent.event_type.in_(list(INTERACTION_TYPES)),
             LearningEvent.topic.isnot(None),
         )
     )
@@ -114,21 +116,18 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
         perf_q = perf_q.where(LearningEvent.course_id == course_id)
     perf_events = (await db.execute(perf_q)).scalars().all()
 
-    topic_positive: dict[str, float] = defaultdict(float)
-    topic_negative: dict[str, float] = defaultdict(float)
+    topic_scores: dict[str, list[float]] = defaultdict(list)
     topic_count: dict[str, int] = defaultdict(int)
 
     for event in perf_events:
         topic = event.topic
-        w = PERFORMANCE_WEIGHTS.get(event.event_type, 0.0)
-        if w > 0:
-            topic_positive[topic] += w
-        else:
-            topic_negative[topic] += abs(w)
         topic_count[topic] += 1
+        score = (event.details or {}).get("score")
+        if score is not None:
+            topic_scores[topic].append(float(score))
 
     # Build TopicKnowledge for each document topic only.
-    # Performance events for non-document topics (e.g. homework question topics) are excluded.
+    # Interaction events for topics not in course documents are excluded.
     all_topics = document_topics
 
     topics: list[TopicKnowledge] = []
@@ -142,11 +141,12 @@ async def get_diagnosis(course_id: Optional[str] = None, db: AsyncSession = Depe
                 total_interactions=count,
             ))
         else:
-            pos = topic_positive[topic]
-            neg = topic_negative[topic]
-            total_weight = pos + neg
-            level = round(pos / total_weight, 3) if total_weight > 0 else 0.5
-            level = max(0.0, min(1.0, level))
+            scores = topic_scores.get(topic, [])
+            if scores:
+                level = round(sum(scores) / len(scores), 3)
+                level = max(0.0, min(1.0, level))
+            else:
+                level = None
             topics.append(TopicKnowledge(
                 topic=topic,
                 knowledge_level=level,

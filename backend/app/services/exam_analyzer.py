@@ -149,34 +149,71 @@ async def analyze_exam_stream(
     async for chunk in _stream_inner():
         yield chunk
 
-    # After streaming: log weak topics as learning events
+    # After streaming: log all exam topics as learning events
     full_text = "".join(collected_text)
-    await _log_weak_topics(db, course_id, full_text)
+    await _log_exam_topics(db, course_id, full_text)
 
 
-async def _log_weak_topics(db: AsyncSession, course_id: str, analysis_text: str) -> None:
-    """Parse markdown table from analysis and log weak topics as learning events."""
+# Emoji → performance score mapping for exam analysis table rows
+_EXAM_ROW_SCORES = {"✅": 1.0, "⚠️": 0.5, "❌": 0.0}
+
+
+async def _log_exam_topics(db: AsyncSession, course_id: str, analysis_text: str) -> None:
+    """
+    Parse the markdown topic table from exam analysis and write learning events.
+
+    For each topic row:
+    - Writes 'exam_analysis_complete' with a 0–1 score (used by diagnosis page).
+    - Keeps legacy 'quiz_wrong' / 'homework_error' for weak topics (used by recommendations).
+    """
     lines = analysis_text.split("\n")
     for line in lines:
         if "|" not in line:
             continue
-        if "❌" in line or "⚠️" in line:
-            parts = [p.strip() for p in line.split("|")]
-            # Table format: | topic | verdict | notes |
-            if len(parts) >= 3:
-                topic = parts[1].strip()
-                if topic and topic not in ("נושא", "Topic", "---", ""):
-                    event_type = "quiz_wrong" if "❌" in line else "homework_error"
-                    try:
-                        await student_intelligence.write_learning_event(
-                            db=db,
-                            event_type=event_type,
-                            course_id=course_id,
-                            topic=topic,
-                            details={"source": "exam_analysis"},
-                        )
-                    except Exception:
-                        pass
+
+        # Determine score from the emoji in the row
+        score = None
+        for symbol, val in _EXAM_ROW_SCORES.items():
+            if symbol in line:
+                score = val
+                break
+        if score is None:
+            continue  # header, separator, or non-topic row — skip
+
+        parts = [p.strip() for p in line.split("|")]
+        # Table format: | topic | verdict | notes |
+        if len(parts) < 3:
+            continue
+        topic = parts[1].strip()
+        if not topic or topic in ("נושא", "Topic", "---", ""):
+            continue
+
+        # Write exam_analysis_complete for ALL topics (for diagnosis knowledge level)
+        try:
+            await student_intelligence.write_learning_event(
+                db=db,
+                event_type="exam_analysis_complete",
+                course_id=course_id,
+                topic=topic,
+                details={"score": score},
+            )
+        except Exception:
+            pass
+
+        # Keep legacy weak-topic events for recommendations engine
+        if score < 1.0:
+            legacy_type = "quiz_wrong" if score == 0.0 else "homework_error"
+            try:
+                await student_intelligence.write_learning_event(
+                    db=db,
+                    event_type=legacy_type,
+                    course_id=course_id,
+                    topic=topic,
+                    details={"source": "exam_analysis"},
+                )
+            except Exception:
+                pass
+
     try:
         await db.commit()
     except Exception:
