@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.models import SharedDocument, SharedDocumentChunk
-from app.services.embeddings import get_embeddings, chunk_text
+from app.services.embeddings import embed_texts, chunk_text
 from app.services.document_processor import (
     _extract_text,
     _text_looks_valid,
@@ -49,7 +49,7 @@ async def process_shared_document(document_id: str, db: AsyncSession) -> None:
         # Chunk and embed
         if text and word_count > 10:
             chunks = chunk_text(text)
-            embeddings = get_embeddings(chunks)
+            embeddings = await embed_texts(chunks)
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 chunk_obj = SharedDocumentChunk(
                     shared_document_id=doc.id,
