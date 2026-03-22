@@ -880,8 +880,8 @@ export function KnowledgePage() {
                         {(doc.processing_status === "error" ||
                           doc.processing_status === "pending" ||
                           (doc.processing_status === "done" &&
-                            doc.metadata_?.scan_quality &&
-                            doc.metadata_.scan_quality !== "good")) && (
+                            (doc.metadata_ as Record<string, unknown>)?.scan_quality != null &&
+                            (doc.metadata_ as Record<string, unknown>)?.scan_quality !== "good")) && (
                           <button
                             onClick={() => handleRetryPersonalDoc(doc.id)}
                             disabled={retryingPersonalId === doc.id}
