@@ -14,7 +14,6 @@ import {
   deleteSharedDocument,
 } from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
-import { HelpTooltip } from "../components/HelpTooltip";
 import { useUser } from "../context/UserContext";
 import type { Document } from "../types";
 import type { SharedCourse, SharedDocument } from "../api/sharedKnowledge";
@@ -385,10 +384,7 @@ export function KnowledgePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
-        <HelpTooltip text={t("help.knowledge")} />
-      </div>
+      <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
 
       {deleteError && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg px-3 py-2 text-sm text-red-400">

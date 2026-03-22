@@ -1,10 +1,12 @@
 import { NavLink, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { HelpTooltip } from "../HelpTooltip";
 
 interface NavItem {
   icon: string;
   key: string;
   path: string;
+  helpKey?: string;
   expandable?: boolean;
   subItems?: SubItem[];
 }
@@ -29,11 +31,13 @@ export function CourseSidebar() {
       icon: "📚",
       key: "sidebar.knowledge",
       path: `/course/${courseId}/knowledge`,
+      helpKey: "help.knowledge",
     },
     {
       icon: "📖",
       key: "sidebar.learning",
       path: `/course/${courseId}/learning`,
+      helpKey: "help.learning",
       expandable: true,
       subItems: [
         {
@@ -57,11 +61,13 @@ export function CourseSidebar() {
       icon: "💬",
       key: "sidebar.chat",
       path: `/course/${courseId}/chat`,
+      helpKey: "help.chat",
     },
     {
       icon: "🔍",
       key: "sidebar.diagnosis",
       path: `/course/${courseId}/diagnosis`,
+      helpKey: "help.diagnosis",
     },
   ];
 
@@ -75,18 +81,26 @@ export function CourseSidebar() {
       <nav className="flex-1 py-2">
         {navItems.map((item) => (
           <div key={item.path}>
-            <NavLink
-              to={item.path}
-              end={!item.expandable}
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
-                  isActive ? activeClass : inactiveClass
-                }`
-              }
-            >
-              <span className="text-base leading-none">{item.icon}</span>
-              <span>{t(item.key)}</span>
-            </NavLink>
+            {/* Row: NavLink + optional help button */}
+            <div className="flex items-center">
+              <NavLink
+                to={item.path}
+                end={!item.expandable}
+                className={({ isActive }) =>
+                  `flex-1 flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                    isActive ? activeClass : inactiveClass
+                  }`
+                }
+              >
+                <span className="text-base leading-none">{item.icon}</span>
+                <span>{t(item.key)}</span>
+              </NavLink>
+              {item.helpKey && (
+                <div className="shrink-0 px-2">
+                  <HelpTooltip text={t(item.helpKey)} />
+                </div>
+              )}
+            </div>
 
             {/* Sub-items for expandable sections */}
             {item.expandable && item.subItems && isLearningOpen && (

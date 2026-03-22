@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { getChatSessions, getChatMessages, deleteChatSession, streamChatMessageFetch } from "../api/chat";
 import { MarkdownContent } from "../components/MarkdownContent";
-import { HelpTooltip } from "../components/HelpTooltip";
 import type { ChatSession, ChatMessage } from "../types";
 
 export function ChatPage() {
@@ -113,14 +112,13 @@ export function ChatPage() {
   return (
     <div className="flex gap-4 h-[calc(100vh-7rem)]">
       <div className="w-44 shrink-0 bg-gray-700 rounded-xl flex flex-col overflow-hidden">
-        <div className="p-3 border-b border-gray-600 flex items-center gap-2">
+        <div className="p-3 border-b border-gray-600">
           <button
             onClick={newSession}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg text-sm font-medium transition-colors"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg text-sm font-medium transition-colors"
           >
             {t("chat.newSession")}
           </button>
-          <HelpTooltip text={t("help.chat")} />
         </div>
         <div className="flex-1 overflow-y-auto">
           {sessions.map((s) => (
