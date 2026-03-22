@@ -24,6 +24,8 @@ config = context.config
 
 # Override sqlalchemy.url from env var
 database_url = os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+# Railway provides postgres:// or postgresql:// — convert to postgresql+asyncpg://
+database_url = database_url.replace("postgres://", "postgresql+asyncpg://").replace("postgresql://", "postgresql+asyncpg://")
 config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
