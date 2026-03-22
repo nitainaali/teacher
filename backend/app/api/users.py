@@ -1,5 +1,7 @@
 """User management API — login screen + user creation."""
 from fastapi import APIRouter, Depends, HTTPException
+from passlib.context import CryptContext
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -11,12 +13,31 @@ from app.api.deps import get_current_user, get_admin_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class PasswordVerifyRequest(BaseModel):
+    user_id: str
+    password: str
+
 
 @router.get("/", response_model=List[UserOut])
 async def list_users(db: AsyncSession = Depends(get_db)):
     """Return all users — used by the login screen to display user cards."""
     result = await db.execute(select(User).order_by(User.created_at))
     return result.scalars().all()
+
+
+@router.post("/verify-password")
+async def verify_password(body: PasswordVerifyRequest, db: AsyncSession = Depends(get_db)):
+    """Verify the password for a user who has password protection enabled."""
+    result = await db.execute(select(User).where(User.id == body.user_id))
+    user = result.scalar_one_or_none()
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=400, detail="No password set for this user")
+    if not pwd_context.verify(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    return {"ok": True}
 
 
 @router.post("/", response_model=UserOut, status_code=201)

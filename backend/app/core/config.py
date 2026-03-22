@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://tutor:tutor@localhost:5432/tutor"
     upload_dir: str = "/app/uploads"
     cors_origins: str = "http://localhost:3000"
+    admin_password: str = "5499"
 
     @property
     def cors_origins_list(self) -> List[str]:

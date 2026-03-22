@@ -21,10 +21,15 @@ class User(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     courses: Mapped[list["Course"]] = relationship("Course", back_populates="user", passive_deletes=True)
     profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False, passive_deletes=True)
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
 
 
 class Course(Base):

@@ -2,10 +2,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import update
+from passlib.context import CryptContext
+from sqlalchemy import update, select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 from app.api import courses, documents, homework, flashcards, quizzes, chat, profile, progress, exams, transcripts, schedule, learning, diagnosis, unified, users, shared_knowledge
 
 
@@ -76,10 +79,28 @@ async def _recover_shared_documents() -> None:
         print(f"[startup] Could not recover shared documents: {exc}")
 
 
+async def _seed_admin_password() -> None:
+    """On startup, set the admin password if not already set.
+    Uses the ADMIN_PASSWORD env var (default: '5499').
+    Idempotent — only hashes and saves if password_hash is None."""
+    try:
+        from app.models.models import User
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.is_admin == True))
+            admin = result.scalar_one_or_none()
+            if admin and admin.password_hash is None:
+                admin.password_hash = pwd_context.hash(settings.admin_password)
+                await db.commit()
+                print("[startup] Admin password seeded")
+    except Exception as exc:
+        print(f"[startup] Could not seed admin password: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _reset_stuck_documents()
     await _recover_shared_documents()
+    await _seed_admin_password()
     yield
 
 

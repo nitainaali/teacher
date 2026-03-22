@@ -455,7 +455,12 @@
     "nameFirstCourse": "תן שם לקורס הראשון שלך",
     "firstCoursePlaceholder": "לדוגמה: אותות ומערכות",
     "createAndEnter": "צור וכנס",
-    "backToLogin": "חזור"
+    "backToLogin": "חזור",
+    "passwordProtected": "מוגן בסיסמה",
+    "passwordPrompt": "הכנס סיסמה עבור {{username}}",
+    "passwordPlaceholder": "סיסמה",
+    "passwordError": "סיסמה שגויה",
+    "passwordSubmit": "כניסה"
   },
   "auth": {
     "logout": "התנתק",
