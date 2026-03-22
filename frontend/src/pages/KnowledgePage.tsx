@@ -716,9 +716,9 @@ export function KnowledgePage() {
                                 ) : (
                                   /* Normal doc row */
                                   <div className="flex items-center gap-1">
-                                    <span className="text-xs text-gray-500 shrink-0">📄</span>
-                                    <span className="text-xs text-gray-400 truncate flex-1">{d.original_name}</span>
-                                    <span className={`text-[10px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
+                                    <span className="text-sm text-gray-500 shrink-0">📄</span>
+                                    <span className="text-sm text-gray-400 truncate flex-1">{d.original_name}</span>
+                                    <span className={`text-xs px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
                                       {t("knowledge.status." + d.processing_status)}
                                     </span>
                                     {/* Import to personal course */}
@@ -726,7 +726,7 @@ export function KnowledgePage() {
                                       onClick={() => handleImportFromShared(d.id, sc.id)}
                                       disabled={importingId === d.id}
                                       title={t("sharedKnowledge.importToKnowledge")}
-                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-green-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
+                                      className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-green-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
                                     >
                                       {importingId === d.id ? "…" : "↓"}
                                     </button>
@@ -740,7 +740,7 @@ export function KnowledgePage() {
                                           }))
                                         }
                                         title={t("sharedKnowledge.editDoc")}
-                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-white transition-colors shrink-0 text-xs"
+                                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-white transition-colors shrink-0 text-xs"
                                       >✏</button>
                                     )}
                                     {/* Admin: retry if error or pending */}
@@ -749,7 +749,7 @@ export function KnowledgePage() {
                                         onClick={() => handleRetrySharedDoc(sc.id, d.id)}
                                         disabled={retryingId === d.id}
                                         title={t("sharedKnowledge.retryDoc")}
-                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-yellow-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
+                                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-500 hover:text-yellow-400 transition-colors shrink-0 disabled:opacity-50 text-xs"
                                       >
                                         {retryingId === d.id ? "…" : "↺"}
                                       </button>
@@ -760,7 +760,7 @@ export function KnowledgePage() {
                                         onClick={() => handleDeleteSharedDoc(sc.id, d.id)}
                                         disabled={deletingSharedDocId === d.id}
                                         title={t("common.delete")}
-                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-600 text-gray-600 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50 text-xs leading-none"
+                                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-600 text-gray-600 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50 text-xs leading-none"
                                       >×</button>
                                     )}
                                   </div>
@@ -779,7 +779,7 @@ export function KnowledgePage() {
         </div>
 
         {/* ── Left panel — document list ── */}
-        <div className="w-72 shrink-0">
+        <div className="flex-1">
           {docs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3 select-none">📂</div>

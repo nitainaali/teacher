@@ -23,8 +23,8 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    courses: Mapped[list["Course"]] = relationship("Course", back_populates="user")
-    profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False)
+    courses: Mapped[list["Course"]] = relationship("Course", back_populates="user", passive_deletes=True)
+    profile: Mapped[Optional["StudentProfile"]] = relationship("StudentProfile", back_populates="user", uselist=False, passive_deletes=True)
 
 
 class Course(Base):
