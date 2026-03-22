@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { HelpTooltip } from "../components/HelpTooltip";
 
 interface LearningCard {
   icon: string;
@@ -37,7 +38,10 @@ export function LearningPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">{t("learning.title")}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-white">{t("learning.title")}</h2>
+          <HelpTooltip text={t("help.learning")} />
+        </div>
         <p className="text-sm text-gray-400 mt-1">{t("learning.subtitle")}</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

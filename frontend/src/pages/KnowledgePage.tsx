@@ -14,6 +14,7 @@ import {
   deleteSharedDocument,
 } from "../api/sharedKnowledge";
 import { Toast } from "../components/Toast";
+import { HelpTooltip } from "../components/HelpTooltip";
 import { useUser } from "../context/UserContext";
 import type { Document } from "../types";
 import type { SharedCourse, SharedDocument } from "../api/sharedKnowledge";
@@ -384,7 +385,10 @@ export function KnowledgePage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
+        <HelpTooltip text={t("help.knowledge")} />
+      </div>
 
       {deleteError && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg px-3 py-2 text-sm text-red-400">
@@ -872,8 +876,12 @@ export function KnowledgePage() {
                           </div>
                         </div>
 
-                        {/* Retry for error/pending */}
-                        {(doc.processing_status === "error" || doc.processing_status === "pending") && (
+                        {/* Retry for error/pending or poor/partial scan quality */}
+                        {(doc.processing_status === "error" ||
+                          doc.processing_status === "pending" ||
+                          (doc.processing_status === "done" &&
+                            doc.metadata_?.scan_quality &&
+                            doc.metadata_.scan_quality !== "good")) && (
                           <button
                             onClick={() => handleRetryPersonalDoc(doc.id)}
                             disabled={retryingPersonalId === doc.id}

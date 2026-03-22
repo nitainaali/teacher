@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import client from "../api/client";
 import type { DiagnosisData } from "../types";
+import { HelpTooltip } from "../components/HelpTooltip";
 
 export function DiagnosisPage() {
   const { t } = useTranslation();
@@ -51,7 +52,10 @@ export function DiagnosisPage() {
   if (!hasData) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-white">{t("diagnosis.title")}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-white">{t("diagnosis.title")}</h2>
+          <HelpTooltip text={t("help.diagnosis")} />
+        </div>
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="text-5xl mb-4 select-none">📊</div>
           <p className="text-gray-400 text-sm max-w-sm">{t("diagnosis.noData")}</p>
@@ -82,7 +86,10 @@ export function DiagnosisPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">{t("diagnosis.title")}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-white">{t("diagnosis.title")}</h2>
+          <HelpTooltip text={t("help.diagnosis")} />
+        </div>
         <p className="text-sm text-gray-400 mt-1">{t("diagnosis.subtitle")}</p>
       </div>
 

@@ -110,7 +110,7 @@
     "summary": "Topic Summary",
     "summaryDesc": "Get a comprehensive summary of any topic from your course materials",
     "flashcards": "Flashcards",
-    "flashcardsDesc": "Review with smart spaced-repetition flashcards",
+    "flashcardsDesc": "Create flashcards with AI and choose the study method that works best for you",
     "quizzes": "Quizzes",
     "quizzesDesc": "Test your knowledge with AI-generated quizzes"
   },
@@ -497,5 +497,11 @@
     "importAll": "Import all to my course",
     "importedAllSuccess": "Imported {{count}} file(s) to your knowledge",
     "importedAllDuplicate": "All files already in your knowledge"
+  },
+  "help": {
+    "knowledge": "Load study materials from your course — they will serve as the foundation for all AI features. You can also import materials from shared libraries.",
+    "learning": "Study your course material using AI-generated summaries, flashcards, and quizzes.",
+    "chat": "Use Claude's chat to answer any question, solve assignments, and analyze your exams. The chat can be based on your study materials or general knowledge — your choice.",
+    "diagnosis": "Once the app has gathered enough data about your learning, it will diagnose your knowledge and provide recommendations based on the course topics."
   }
 }
