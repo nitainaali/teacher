@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { getUsers, createUser, type User } from "../api/users";
+import { getUsers, createUser, verifyPassword, type User } from "../api/users";
 import { useUser } from "../context/UserContext";
 import { createCourse } from "../api/courses";
 import { setCurrentUserId } from "../api/client";
@@ -46,6 +46,12 @@ export function LoginPage() {
   const [firstCourseColor, setFirstCourseColor] = useState(COLOR_OPTIONS[0]);
   const [creatingCourse, setCreatingCourse] = useState(false);
 
+  // Password modal
+  const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
   useEffect(() => {
     setLoading(true);
     getUsers()
@@ -54,7 +60,34 @@ export function LoginPage() {
   }, []);
 
   const handleSelect = (user: User) => {
+    if (user.has_password) {
+      setPasswordUser(user);
+      setPasswordInput("");
+      setPasswordError("");
+      return;
+    }
     setUser(user);
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordUser || verifying) return;
+    setVerifying(true);
+    setPasswordError("");
+    try {
+      await verifyPassword(passwordUser.id, passwordInput);
+      setUser(passwordUser);
+      setPasswordUser(null);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        setPasswordError(t("login.passwordError"));
+      } else {
+        setPasswordError(t("common.error"));
+      }
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -201,6 +234,9 @@ export function LoginPage() {
                     <div className="text-xs text-blue-400">{t("login.admin")}</div>
                   )}
                 </div>
+                {user.has_password && (
+                  <div className="ms-auto text-gray-500 text-lg" title={t("login.passwordProtected")}>🔒</div>
+                )}
               </button>
             ))}
 
@@ -247,6 +283,51 @@ export function LoginPage() {
           </div>
         )}
       </div>
+
+      {/* Password modal */}
+      {passwordUser && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-5">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3"
+                style={{ backgroundColor: avatarColor(passwordUser.username) }}
+              >
+                {avatarInitial(passwordUser.username)}
+              </div>
+              <p className="text-white font-medium">{t("login.passwordPrompt", { username: passwordUser.username })}</p>
+            </div>
+            <form onSubmit={handlePasswordSubmit} className="space-y-3">
+              <input
+                autoFocus
+                type="password"
+                value={passwordInput}
+                onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(""); }}
+                placeholder={t("login.passwordPlaceholder")}
+                className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+                dir="ltr"
+              />
+              {passwordError && <p className="text-red-400 text-sm">{passwordError}</p>}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={verifying || !passwordInput}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-3 py-2.5 text-sm font-medium"
+                >
+                  {verifying ? t("common.loading") : t("login.passwordSubmit")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPasswordUser(null); setPasswordInput(""); setPasswordError(""); }}
+                  className="px-3 py-2.5 text-sm text-gray-400 hover:text-white"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

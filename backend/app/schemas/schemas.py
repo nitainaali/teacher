@@ -13,6 +13,7 @@ class UserOut(BaseModel):
     id: str
     username: str
     is_admin: bool
+    has_password: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

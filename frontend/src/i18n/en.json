@@ -455,7 +455,12 @@
     "nameFirstCourse": "Name your first course",
     "firstCoursePlaceholder": "e.g. Signals & Systems",
     "createAndEnter": "Create & enter",
-    "backToLogin": "Back"
+    "backToLogin": "Back",
+    "passwordProtected": "Password protected",
+    "passwordPrompt": "Enter password for {{username}}",
+    "passwordPlaceholder": "Password",
+    "passwordError": "Incorrect password",
+    "passwordSubmit": "Enter"
   },
   "auth": {
     "logout": "Logout",
