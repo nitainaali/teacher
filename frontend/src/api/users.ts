@@ -16,3 +16,11 @@ export async function createUser(username: string): Promise<User> {
   const res = await client.post<User>("/api/users/", { username });
   return res.data;
 }
+
+export async function deleteMyUser(): Promise<void> {
+  await client.delete("/api/users/me");
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await client.delete(`/api/users/${id}`);
+}

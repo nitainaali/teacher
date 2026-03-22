@@ -36,7 +36,9 @@
     "courseName": "שם הקורס",
     "courseColor": "צבע",
     "createCourse": "צור קורס",
-    "namePlaceholder": "למשל: אותות ומערכות"
+    "namePlaceholder": "למשל: אותות ומערכות",
+    "deleteCourse": "מחק קורס",
+    "deleteCourseConfirm": "למחוק את '{{name}}'? כל נתוני הקורס יימחקו לצמיתות."
   },
   "welcome": {
     "title": "ברוך הבא למורה AI",
@@ -449,10 +451,18 @@
     "usernamePlaceholder": "שם משתמש",
     "createUser": "צור",
     "admin": "מנהל",
-    "createError": "שגיאה ביצירת משתמש"
+    "createError": "שגיאה ביצירת משתמש",
+    "nameFirstCourse": "תן שם לקורס הראשון שלך",
+    "firstCoursePlaceholder": "לדוגמה: אותות ומערכות",
+    "createAndEnter": "צור וכנס",
+    "backToLogin": "חזור"
   },
   "auth": {
-    "logout": "התנתק"
+    "logout": "התנתק",
+    "deleteAccount": "מחק חשבון",
+    "deleteAccountConfirm": "למחוק את החשבון לצמיתות? כל הקורסים והנתונים יימחקו.",
+    "manageUsers": "נהל משתמשים",
+    "deleteUser": "מחק משתמש"
   },
   "sharedKnowledge": {
     "title": "ספריית ידע משותף",

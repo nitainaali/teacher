@@ -36,7 +36,9 @@
     "courseName": "Course name",
     "courseColor": "Color",
     "createCourse": "Create Course",
-    "namePlaceholder": "e.g. Signals and Systems"
+    "namePlaceholder": "e.g. Signals and Systems",
+    "deleteCourse": "Delete course",
+    "deleteCourseConfirm": "Delete '{{name}}'? All course data will be permanently deleted."
   },
   "welcome": {
     "title": "Welcome to AI Tutor",
@@ -449,10 +451,18 @@
     "usernamePlaceholder": "Username",
     "createUser": "Create",
     "admin": "Admin",
-    "createError": "Failed to create user"
+    "createError": "Failed to create user",
+    "nameFirstCourse": "Name your first course",
+    "firstCoursePlaceholder": "e.g. Signals & Systems",
+    "createAndEnter": "Create & enter",
+    "backToLogin": "Back"
   },
   "auth": {
-    "logout": "Logout"
+    "logout": "Logout",
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirm": "Delete your account permanently? All courses and data will be lost.",
+    "manageUsers": "Manage users",
+    "deleteUser": "Delete user"
   },
   "sharedKnowledge": {
     "title": "Shared Knowledge Library",

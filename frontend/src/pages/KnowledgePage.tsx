@@ -395,8 +395,8 @@ export function KnowledgePage() {
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
       <div className="flex gap-4 items-start">
-        {/* ── Right panel (upload + shared library) ── */}
-        <div className="w-84 shrink-0 bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-4">
+        {/* ── Right panel (upload + shared library) — flex-1 so it fills remaining space ── */}
+        <div className="flex-1 min-w-0 bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-4">
           <h3 className="text-sm font-semibold text-gray-300">{t("knowledge.addFile")}</h3>
 
           {/* Drop zone */}
@@ -613,11 +613,11 @@ export function KnowledgePage() {
                     <div className="flex items-center gap-1 px-2 py-1.5">
                       <button
                         onClick={() => toggleDocsOpen(sc.id)}
-                        className="flex-1 text-left text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-1 min-w-0"
+                        className="flex-1 text-left text-sm text-gray-300 hover:text-white transition-colors flex items-center gap-1 min-w-0"
                       >
                         <span className="truncate font-medium">{sc.name}</span>
                         {sc.docs != null && (
-                          <span className="text-[10px] text-gray-500 shrink-0">({sc.docs.length})</span>
+                          <span className="text-xs text-gray-500 shrink-0">({sc.docs.length})</span>
                         )}
                         <span className="text-gray-600 shrink-0">{sc.docsOpen ? "▾" : "▸"}</span>
                       </button>
@@ -658,9 +658,9 @@ export function KnowledgePage() {
                     {sc.docsOpen && (
                       <div className="border-t border-gray-600/50 px-2 py-1.5 space-y-1">
                         {!sc.docsLoaded ? (
-                          <p className="text-[10px] text-gray-500 animate-pulse">{t("common.loading")}</p>
+                          <p className="text-xs text-gray-500 animate-pulse">{t("common.loading")}</p>
                         ) : sc.docs?.length === 0 ? (
-                          <p className="text-[10px] text-gray-500">{t("sharedKnowledge.noDocs")}</p>
+                          <p className="text-xs text-gray-500">{t("sharedKnowledge.noDocs")}</p>
                         ) : (
                           <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
                             {(sc.docs ?? []).map((d) => (
@@ -678,7 +678,7 @@ export function KnowledgePage() {
                                           [d.id]: { ...prev[d.id]!, name: e.target.value },
                                         }))
                                       }
-                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-[10px] focus:outline-none focus:border-blue-500"
+                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
                                     />
                                     <select
                                       value={editingDoc[d.id]!.docType}
@@ -688,7 +688,7 @@ export function KnowledgePage() {
                                           [d.id]: { ...prev[d.id]!, docType: e.target.value },
                                         }))
                                       }
-                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-[10px] focus:outline-none focus:border-blue-500"
+                                      className="w-full bg-gray-700 border border-gray-600 rounded px-1.5 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
                                     >
                                       {DOC_TYPES.map((dt) => (
                                         <option key={dt} value={dt}>{t("knowledge.types." + dt)}</option>
@@ -697,7 +697,7 @@ export function KnowledgePage() {
                                     <div className="flex gap-1">
                                       <button
                                         onClick={() => handleSaveEditDoc(sc.id, d.id)}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-1.5 py-0.5 text-xs font-medium"
                                       >
                                         {t("common.save")}
                                       </button>
@@ -707,7 +707,7 @@ export function KnowledgePage() {
                                             const n = { ...prev }; delete n[d.id]; return n;
                                           })
                                         }
-                                        className="text-gray-400 hover:text-white px-1.5 py-0.5 text-[10px]"
+                                        className="text-gray-400 hover:text-white px-1.5 py-0.5 text-xs"
                                       >
                                         {t("common.cancel")}
                                       </button>
@@ -716,9 +716,9 @@ export function KnowledgePage() {
                                 ) : (
                                   /* Normal doc row */
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-gray-500 shrink-0">📄</span>
-                                    <span className="text-[10px] text-gray-400 truncate flex-1">{d.original_name}</span>
-                                    <span className={`text-[9px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
+                                    <span className="text-xs text-gray-500 shrink-0">📄</span>
+                                    <span className="text-xs text-gray-400 truncate flex-1">{d.original_name}</span>
+                                    <span className={`text-[10px] px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
                                       {t("knowledge.status." + d.processing_status)}
                                     </span>
                                     {/* Import to personal course */}
@@ -779,7 +779,7 @@ export function KnowledgePage() {
         </div>
 
         {/* ── Left panel — document list ── */}
-        <div className="flex-1 min-w-0">
+        <div className="w-72 shrink-0">
           {docs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3 select-none">📂</div>

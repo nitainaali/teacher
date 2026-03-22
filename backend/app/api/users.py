@@ -7,7 +7,7 @@ from typing import List
 from app.core.database import get_db
 from app.models.models import User
 from app.schemas.schemas import UserCreate, UserOut
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_admin_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -37,3 +37,28 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db)):
 async def get_me(current_user: User = Depends(get_current_user)):
     """Return the current user identified by X-User-Id header."""
     return current_user
+
+
+@router.delete("/me", status_code=204)
+async def delete_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete the currently logged-in user and all their data."""
+    await db.delete(current_user)
+    await db.commit()
+
+
+@router.delete("/{user_id}", status_code=204)
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Admin: delete any user by ID."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.delete(user)
+    await db.commit()

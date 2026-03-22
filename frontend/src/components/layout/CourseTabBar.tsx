@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getCourses, createCourse, updateCourse, reorderCourses } from "../../api/courses";
+import { getCourses, createCourse, updateCourse, reorderCourses, deleteCourse } from "../../api/courses";
+import { getUsers, deleteMyUser, deleteUser, type User } from "../../api/users";
 import type { Course } from "../../types";
 import { setLanguage } from "../../i18n";
 import { useUser } from "../../context/UserContext";
@@ -47,6 +48,20 @@ export function CourseTabBar() {
   // Drag-to-reorder
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  // Delete course confirmation
+  const [showDeleteCourseId, setShowDeleteCourseId] = useState<string | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState(false);
+
+  // Delete self confirmation
+  const [showDeleteSelf, setShowDeleteSelf] = useState(false);
+  const [deletingSelf, setDeletingSelf] = useState(false);
+
+  // Admin: manage users modal
+  const [showManageUsers, setShowManageUsers] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +138,71 @@ export function CourseTabBar() {
     setShowColorPicker(null);
   };
 
+  const handleDeleteCourseConfirm = async () => {
+    if (!showDeleteCourseId || deletingCourse) return;
+    setDeletingCourse(true);
+    try {
+      await deleteCourse(showDeleteCourseId);
+      const remaining = courses.filter((c) => c.id !== showDeleteCourseId);
+      setCourses(remaining);
+      setShowDeleteCourseId(null);
+      setEditingId(null);
+      if (remaining.length > 0) {
+        navigate(`/course/${remaining[0].id}/knowledge`);
+      } else {
+        navigate("/");
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setDeletingCourse(false);
+    }
+  };
+
+  const handleDeleteSelfConfirm = async () => {
+    if (deletingSelf) return;
+    setDeletingSelf(true);
+    try {
+      await deleteMyUser();
+      clearUser();
+    } catch {
+      /* silently fail */
+    } finally {
+      setDeletingSelf(false);
+      setShowDeleteSelf(false);
+    }
+  };
+
+  const handleOpenManageUsers = async () => {
+    setShowManageUsers(true);
+    setLoadingUsers(true);
+    try {
+      const users = await getUsers();
+      setAllUsers(users);
+    } catch {
+      /* silently fail */
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleDeleteUserConfirm = async (userId: string) => {
+    if (deletingUserId) return;
+    setDeletingUserId(userId);
+    try {
+      await deleteUser(userId);
+      setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+      // If admin deleted themselves, log out
+      if (userId === currentUser?.id) {
+        clearUser();
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDragSourceId(id);
@@ -189,6 +269,8 @@ export function CourseTabBar() {
     setLanguage(i18n.language === "he" ? "en" : "he");
   };
 
+  const courseToDelete = showDeleteCourseId ? courses.find((c) => c.id === showDeleteCourseId) : null;
+
   return (
     <>
       <div className="bg-gray-800 border-b border-gray-700 flex items-center shrink-0 h-10 overflow-hidden">
@@ -252,6 +334,22 @@ export function CourseTabBar() {
                   ) : (
                     <span className="max-w-[140px] truncate">{course.name}</span>
                   )}
+
+                  {/* Delete course button — only visible in edit mode */}
+                  {editingId === course.id && (
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent onBlur on the input from firing first
+                        e.stopPropagation();
+                        setEditingId(null);
+                        setShowDeleteCourseId(course.id);
+                      }}
+                      title={t("tabs.deleteCourse")}
+                      className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-400 shrink-0 text-xs transition-colors"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </button>
 
                 {/* Color picker popover */}
@@ -289,7 +387,7 @@ export function CourseTabBar() {
 
         </div>
 
-        {/* Right side: user avatar + logout + language toggle */}
+        {/* Right side: user avatar + manage users (admin) + delete self + logout + language toggle */}
         <div className="shrink-0 flex items-center gap-1.5 mx-2">
           {currentUser && (
             <>
@@ -302,6 +400,24 @@ export function CourseTabBar() {
               <span className="text-xs text-gray-400 max-w-[5rem] truncate hidden sm:block">
                 {currentUser.username}
               </span>
+              {/* Admin: manage users */}
+              {currentUser.is_admin && (
+                <button
+                  onClick={handleOpenManageUsers}
+                  title={t("auth.manageUsers")}
+                  className="text-xs text-gray-500 hover:text-white border border-gray-600 rounded px-1.5 py-0.5 transition-colors"
+                >
+                  👥
+                </button>
+              )}
+              {/* Delete own account */}
+              <button
+                onClick={() => setShowDeleteSelf(true)}
+                title={t("auth.deleteAccount")}
+                className="text-xs text-gray-500 hover:text-red-400 border border-gray-600 rounded px-1.5 py-0.5 transition-colors"
+              >
+                🗑
+              </button>
               <button
                 onClick={clearUser}
                 title={t("auth.logout")}
@@ -380,6 +496,135 @@ export function CourseTabBar() {
                 {t("common.create")}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Course Confirmation Modal */}
+      {showDeleteCourseId && courseToDelete && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+          onClick={() => setShowDeleteCourseId(null)}
+        >
+          <div
+            className="bg-gray-800 rounded-xl p-6 w-80 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-white font-semibold text-base mb-3">
+              {t("tabs.deleteCourse")}
+            </h2>
+            <p className="text-gray-300 text-sm mb-5">
+              {t("tabs.deleteCourseConfirm", { name: courseToDelete.name })}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowDeleteCourseId(null)}
+                className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleDeleteCourseConfirm}
+                disabled={deletingCourse}
+                className="text-sm bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors"
+              >
+                {deletingCourse ? "…" : t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Self Confirmation Modal */}
+      {showDeleteSelf && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+          onClick={() => setShowDeleteSelf(false)}
+        >
+          <div
+            className="bg-gray-800 rounded-xl p-6 w-80 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-white font-semibold text-base mb-3">
+              {t("auth.deleteAccount")}
+            </h2>
+            <p className="text-gray-300 text-sm mb-5">
+              {t("auth.deleteAccountConfirm")}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowDeleteSelf(false)}
+                className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleDeleteSelfConfirm}
+                disabled={deletingSelf}
+                className="text-sm bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors"
+              >
+                {deletingSelf ? "…" : t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: Manage Users Modal */}
+      {showManageUsers && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+          onClick={() => setShowManageUsers(false)}
+        >
+          <div
+            className="bg-gray-800 rounded-xl p-6 w-80 shadow-2xl max-h-96 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold text-base">
+                {t("auth.manageUsers")}
+              </h2>
+              <button
+                onClick={() => setShowManageUsers(false)}
+                className="text-gray-400 hover:text-white text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {loadingUsers ? (
+              <p className="text-gray-400 text-sm text-center py-4">{t("common.loading")}</p>
+            ) : (
+              <div className="overflow-y-auto flex-1 space-y-2">
+                {allUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-3 bg-gray-700/50 rounded-lg px-3 py-2"
+                  >
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: avatarColor(user.username) }}
+                    >
+                      {user.username.trim().charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-sm truncate">{user.username}</div>
+                      {user.is_admin && (
+                        <div className="text-xs text-blue-400">{t("login.admin")}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDeleteUserConfirm(user.id)}
+                      disabled={deletingUserId === user.id}
+                      title={t("auth.deleteUser")}
+                      className="text-gray-500 hover:text-red-400 disabled:opacity-50 text-sm transition-colors shrink-0"
+                    >
+                      {deletingUserId === user.id ? "…" : "×"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

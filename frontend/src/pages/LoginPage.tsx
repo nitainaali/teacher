@@ -2,10 +2,21 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getUsers, createUser, type User } from "../api/users";
 import { useUser } from "../context/UserContext";
+import { createCourse } from "../api/courses";
+import { setCurrentUserId } from "../api/client";
 
 const AVATAR_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
   "#ec4899", "#06b6d4", "#84cc16",
+];
+
+const COLOR_OPTIONS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
 ];
 
 function avatarColor(username: string): string {
@@ -29,6 +40,12 @@ export function LoginPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // First-course step
+  const [pendingNewUser, setPendingNewUser] = useState<User | null>(null);
+  const [firstCourseName, setFirstCourseName] = useState("");
+  const [firstCourseColor, setFirstCourseColor] = useState(COLOR_OPTIONS[0]);
+  const [creatingCourse, setCreatingCourse] = useState(false);
+
   useEffect(() => {
     setLoading(true);
     getUsers()
@@ -51,7 +68,10 @@ export function LoginPage() {
       setUsers((prev) => [...prev, user]);
       setShowNewUser(false);
       setNewUsername("");
-      setUser(user);
+      // Set the API header so we can create the first course
+      setCurrentUserId(user.id);
+      // Show first-course naming step instead of logging in immediately
+      setPendingNewUser(user);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(typeof detail === "string" ? detail : t("login.createError"));
@@ -59,6 +79,96 @@ export function LoginPage() {
       setCreating(false);
     }
   };
+
+  const handleCreateFirstCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = firstCourseName.trim();
+    if (!name || !pendingNewUser || creatingCourse) return;
+    setCreatingCourse(true);
+    try {
+      await createCourse({ name, color: firstCourseColor });
+      setUser(pendingNewUser);
+    } catch {
+      // Even if course creation fails, log the user in — they can create a course later
+      setUser(pendingNewUser);
+    } finally {
+      setCreatingCourse(false);
+    }
+  };
+
+  const handleCancelFirstCourse = () => {
+    setPendingNewUser(null);
+    setFirstCourseName("");
+    setFirstCourseColor(COLOR_OPTIONS[0]);
+    setCurrentUserId(null);
+  };
+
+  // First-course naming screen
+  if (pendingNewUser) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="text-5xl mb-4">📚</div>
+            <h1 className="text-2xl font-bold text-white mb-2">
+              {t("login.nameFirstCourse")}
+            </h1>
+            <p className="text-gray-400 text-sm">
+              {pendingNewUser.username}
+            </p>
+          </div>
+
+          <form onSubmit={handleCreateFirstCourse} className="bg-gray-800 rounded-xl px-5 py-5 space-y-4">
+            <input
+              autoFocus
+              type="text"
+              value={firstCourseName}
+              onChange={(e) => setFirstCourseName(e.target.value)}
+              placeholder={t("login.firstCoursePlaceholder")}
+              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500"
+              maxLength={80}
+            />
+
+            <div>
+              <p className="text-xs text-gray-400 mb-2">{t("tabs.courseColor")}</p>
+              <div className="flex gap-2">
+                {COLOR_OPTIONS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setFirstCourseColor(color)}
+                    className={`w-7 h-7 rounded-full transition-transform ${
+                      firstCourseColor === color
+                        ? "scale-125 ring-2 ring-white ring-offset-2 ring-offset-gray-800"
+                        : "hover:scale-110"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={creatingCourse || !firstCourseName.trim()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-3 py-2.5 text-sm font-medium"
+              >
+                {creatingCourse ? t("common.loading") : t("login.createAndEnter")}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelFirstCourse}
+                className="px-3 py-2.5 text-sm text-gray-400 hover:text-white"
+              >
+                {t("login.backToLogin")}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
