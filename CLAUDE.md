@@ -3,7 +3,7 @@
 ## Project Overview
 
 Personal AI tutor web application for an electrical engineering student.
-Single-user personal tool (no auth system needed).
+Multi-user with login (username only, no password). Single admin user can manage all users.
 
 ## Tech Stack
 
@@ -41,10 +41,16 @@ Single-user personal tool (no auth system needed).
 - **RTL/LTR**: `MarkdownContent` uses `dir="auto"` on all text elements so Hebrew paragraphs are RTL and English paragraphs are LTR within the same document
 - **Embedding model**: `paraphrase-multilingual-MiniLM-L12-v2` (384-dim, 50+ languages, supports Hebrew+English)
 - **scan_quality**: computed on every document upload — "good" (has Hebrew), "partial" (no Hebrew but >30 words), "poor" (≤30 words) — stored in `documents.metadata`
+- **Multi-user auth**: username-only login; `X-User-Id` header set on every axios request via `setCurrentUserId()`; `get_current_user` / `get_admin_user` FastAPI deps read the header
+- **User deletion cascade**: all FK columns referencing `users.id` use `ondelete="CASCADE"` at DB level; `User.courses` and `User.profile` relationships have `passive_deletes=True` so `db.delete(user)` lets the DB cascade without ORM interference
+- **Document user-scoping**: `GET /api/documents/` always JOINs with `Course` and filters `Course.user_id == current_user.id` — prevents cross-user document leakage even if `course_id` param is missing
+- **First-course flow**: new users see a "name your first course" screen after signup before entering the app — prevents the courseless empty state
+- **HelpTooltip**: `components/HelpTooltip.tsx` renders tooltip via `createPortal` into `document.body` with `position:fixed` + `getBoundingClientRect()` — avoids clipping by sidebar `overflow-y:auto`
 
 ## Database — Key Tables
 
-- `courses`: organizes all content
+- `users`: username, is_admin flag; all other tables have `user_id` FK with `ondelete="CASCADE"`
+- `courses`: organizes all content; `user_id` FK → user-scoped
 - `documents` + `document_chunks`: PDFs processed via Claude Vision, chunked + embedded
   - `documents.metadata` JSONB: `{"scan_quality": "good"|"partial"|"poor", "word_count": N, "error": "..."}`
 - `learning_events`: every interaction logged with topic + event_type, used to build student profile
@@ -62,10 +68,10 @@ Single-user personal tool (no auth system needed).
 
 ### Fully Implemented
 
-- Courses (create, list, detail, **edit name/color via pencil icon modal**)
+- Courses (create, list, detail, **edit name/color via pencil icon modal**, **delete course with confirmation**)
 - Document upload + Claude Vision processing + RAG embeddings — **multi-file support** (drag-drop or picker, per-file status ⏳↑✓✗)
 - Document classification: summaries/lectures = raw material; exams = topic importance signal
-- **Document scan quality badge** — Knowledge page shows ⚠ "לא נסרק כראוי" for partial/poor scans
+- **Document scan quality badge** — Knowledge page shows ⚠ "לא נסרק כראוי" for partial/poor scans; **retry button also shown for partial/poor scan docs** (not just error/pending)
 - **Document topic extraction in Hebrew** — `_extract_document_topics()` and `_extract_exam_topics()` output Hebrew topic names
 - Homework checker (**multi-file**: images + PDFs, knowledge mode toggle + streaming structured feedback)
 - Chat (streaming SSE, RAG, full history persistence, MarkdownContent rendering)
@@ -82,6 +88,12 @@ Single-user personal tool (no auth system needed).
 - **AI output language** — all AI endpoints accept `language` param; `build_system_prompt` injects explicit language instruction so Claude always responds in the active UI language
 - **Startup recovery** — on server start, documents stuck in "processing" (e.g. from container crash) are auto-reset to "error" so user can delete + re-upload
 - **CourseTabBar resilience** — retries `getCourses()` up to 3 times with 1.5s delay; shows `···` while loading (prevents blank tab bar after Docker rebuild)
+- **Multi-user login** — username-only login page; user list with create; `X-User-Id` header on every request
+- **First-course flow** — new users see "name your first course" screen after signup before entering the app
+- **User deletion** — any user can delete their own account (🗑 in CourseTabBar); admin can delete any user via 👥 manage-users modal; cascades all courses + data
+- **Delete course** — 🗑 button shown when tab is in inline-edit mode; confirmation modal
+- **HelpTooltip** — ? button next to each page in the sidebar nav (ידע פנימי / לימוד / שאל את הצ'אט / אבחון מצב לימודי); portal-based to avoid sidebar overflow clipping
+- **KnowledgePage layout** — 50/50 flex split between doc list (left) and upload+shared library (right)
 
 ### Scaffolded (UI exists, logic partially stubbed)
 
@@ -110,6 +122,8 @@ Single-user personal tool (no auth system needed).
 - FSRS quality ratings: 0=Again, 1=Hard, 2=Good, 3=Easy (maps to FSRS grade 1–4 in backend)
 - Topic extraction prompts (`_extract_document_topics`, `_extract_exam_topics`) must return Hebrew — always include `"Return a JSON array of strings in Hebrew (עברית)"` in the prompt
 - RAG top_k=15 for topic summary (higher than chat/homework to improve recall for niche subtopics)
+- **Document list endpoint must always filter by current user** — JOIN with Course + `Course.user_id == current_user.id`; never return documents across users
+- **New tooltips/popovers that appear inside `overflow: auto` containers** must use `createPortal` + `position:fixed` (see `HelpTooltip.tsx`)
 
 ## Key Services
 
@@ -126,6 +140,18 @@ Single-user personal tool (no auth system needed).
 | `services/rag.py` | Cosine similarity search via pgvector; filters by course_id + upload_source |
 | `components/MarkdownContent.tsx` | KaTeX + react-markdown renderer + `dir="auto"` for RTL/LTR |
 | `components/RecommendationsPanel.tsx` | Urgency-color-coded topic recommendations widget |
+| `components/HelpTooltip.tsx` | Click-to-show ? help popup; uses `createPortal` + `position:fixed` to escape `overflow:auto` parents |
+| `components/layout/CourseSidebar.tsx` | Course nav sidebar with HelpTooltip per item; `helpKey` field on NavItem drives tooltip text |
+| `api/deps.py` | `get_current_user` (reads `X-User-Id` header) + `get_admin_user` (checks `is_admin`) FastAPI deps |
+
+## API — User Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/users/` | GET | List all users (admin only) |
+| `POST /api/users/` | POST | Create a new user |
+| `DELETE /api/users/me` | DELETE | Delete the currently logged-in user + all their data (cascade) |
+| `DELETE /api/users/{user_id}` | DELETE | Admin: delete any user by ID (cascade) |
 
 ## API — Learning Endpoints
 
