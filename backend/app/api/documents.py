@@ -18,13 +18,26 @@ from typing import List, Optional
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
+async def _get_doc_owned(doc_id: str, user_id: str, db: AsyncSession) -> Document:
+    """Fetch a document and verify it belongs to the current user via Course. Raises 404 otherwise."""
+    result = await db.execute(
+        select(Document)
+        .join(Course, Document.course_id == Course.id)
+        .where(Document.id == doc_id, Course.user_id == user_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    return doc
+
+
 async def _process_in_new_session(document_id: str) -> None:
     """Run document processing with its own DB session (background task safe)."""
     async with AsyncSessionLocal() as db:
         try:
             await process_document(document_id, db)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[document processor] error processing {document_id}: {e}")
 
 
 @router.post("/upload", response_model=DocumentOut, status_code=201)
@@ -36,6 +49,20 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Verify course ownership
+    course_check = await db.execute(
+        select(Course).where(Course.id == course_id, Course.user_id == current_user.id)
+    )
+    if not course_check.scalar_one_or_none():
+        raise HTTPException(404, "Course not found")
+
+    allowed_types = {"application/pdf", "image/png", "image/jpeg", "image/jpg"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: PDF, PNG, JPEG.",
+        )
+
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -124,11 +151,7 @@ async def get_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(404, "Document not found")
-    return doc
+    return await _get_doc_owned(doc_id, current_user.id, db)
 
 
 @router.delete("/{doc_id}", status_code=204)
@@ -137,10 +160,7 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(404, "Document not found")
+    doc = await _get_doc_owned(doc_id, current_user.id, db)
     try:
         os.remove(doc.file_path)
     except FileNotFoundError:
@@ -157,10 +177,7 @@ async def update_document(
     current_user: User = Depends(get_current_user),
 ):
     """Rename a personal document or change its doc_type."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(404, "Document not found")
+    doc = await _get_doc_owned(doc_id, current_user.id, db)
     if body.original_name is not None:
         doc.original_name = body.original_name
     if body.doc_type is not None:
@@ -178,10 +195,7 @@ async def retry_document(
     current_user: User = Depends(get_current_user),
 ):
     """Retry processing for a failed or stuck personal document."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(404, "Document not found")
+    doc = await _get_doc_owned(doc_id, current_user.id, db)
     doc.processing_status = "pending"
     doc.metadata_ = None
     await db.flush()

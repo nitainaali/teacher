@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.models import ChatSession, ChatMessage, HomeworkSubmission, ExamAnalysisRecord, User
+from app.models.models import ChatSession, ChatMessage, HomeworkSubmission, ExamAnalysisRecord, User, Course
 from app.schemas.schemas import UnifiedHistoryItem
 from app.api.deps import get_current_user
 
@@ -27,7 +27,10 @@ async def get_unified_history(
     if type_filter in ("all", "general"):
         query = (
             select(ChatSession)
-            .where(ChatSession.source.notin_(["homework_chat", "exam_chat"]))
+            .where(
+                ChatSession.source.notin_(["homework_chat", "exam_chat"]),
+                ChatSession.user_id == current_user.id,
+            )
             .order_by(ChatSession.created_at.desc())
         )
         if course_id:
@@ -80,7 +83,12 @@ async def get_unified_history(
 
     # ── Exam analysis records ─────────────────────────────────────────────────
     if type_filter in ("all", "exam"):
-        query = select(ExamAnalysisRecord).order_by(ExamAnalysisRecord.created_at.desc())
+        query = (
+            select(ExamAnalysisRecord)
+            .join(Course, ExamAnalysisRecord.course_id == Course.id)
+            .where(Course.user_id == current_user.id)
+            .order_by(ExamAnalysisRecord.created_at.desc())
+        )
         if course_id:
             query = query.where(ExamAnalysisRecord.course_id == course_id)
         records = (await db.execute(query)).scalars().all()

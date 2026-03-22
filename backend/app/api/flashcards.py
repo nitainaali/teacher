@@ -7,7 +7,7 @@ import math
 from datetime import datetime, date, timezone
 
 from app.core.database import get_db
-from app.models.models import Flashcard, FlashcardDeck, Document, StudySession, ReviewLog, User
+from app.models.models import Flashcard, FlashcardDeck, Document, StudySession, ReviewLog, User, Course
 from app.schemas.schemas import (
     FlashcardOut, FlashcardReviewRequest, FlashcardDeckOut, FlashcardDeckRename,
     FlashcardUpdate, StudySessionCreate, StudySessionOut, NextCardResponse,
@@ -27,6 +27,32 @@ router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
 # ── Deck endpoints ────────────────────────────────────────────────────────────
 
+async def _get_deck_owned(deck_id: str, user_id: str, db: AsyncSession) -> FlashcardDeck:
+    """Fetch a deck and verify it belongs to the current user. Raises 404 otherwise."""
+    result = await db.execute(
+        select(FlashcardDeck)
+        .join(Course, FlashcardDeck.course_id == Course.id)
+        .where(FlashcardDeck.id == deck_id, Course.user_id == user_id)
+    )
+    deck = result.scalar_one_or_none()
+    if not deck:
+        raise HTTPException(404, "Deck not found")
+    return deck
+
+
+async def _get_card_owned(card_id: str, user_id: str, db: AsyncSession) -> Flashcard:
+    """Fetch a card and verify it belongs to the current user. Raises 404 otherwise."""
+    result = await db.execute(
+        select(Flashcard)
+        .join(Course, Flashcard.course_id == Course.id)
+        .where(Flashcard.id == card_id, Course.user_id == user_id)
+    )
+    card = result.scalar_one_or_none()
+    if not card:
+        raise HTTPException(404, "Flashcard not found")
+    return card
+
+
 @router.get("/decks", response_model=List[FlashcardDeckOut])
 async def list_decks(
     course_id: str,
@@ -35,7 +61,8 @@ async def list_decks(
 ):
     result = await db.execute(
         select(FlashcardDeck)
-        .where(FlashcardDeck.course_id == course_id)
+        .join(Course, FlashcardDeck.course_id == Course.id)
+        .where(FlashcardDeck.course_id == course_id, Course.user_id == current_user.id)
         .order_by(FlashcardDeck.created_at.desc())
     )
     return result.scalars().all()
@@ -47,6 +74,7 @@ async def get_deck_cards(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    await _get_deck_owned(deck_id, current_user.id, db)
     result = await db.execute(
         select(Flashcard).where(Flashcard.deck_id == deck_id).order_by(Flashcard.next_review_date)
     )
@@ -60,10 +88,7 @@ async def rename_deck(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
-    deck = result.scalar_one_or_none()
-    if not deck:
-        raise HTTPException(404, "Deck not found")
+    deck = await _get_deck_owned(deck_id, current_user.id, db)
     deck.name = data.name
     await db.flush()
     await db.refresh(deck)
@@ -77,10 +102,7 @@ async def delete_deck(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
-    deck = result.scalar_one_or_none()
-    if not deck:
-        raise HTTPException(404, "Deck not found")
+    deck = await _get_deck_owned(deck_id, current_user.id, db)
     await db.delete(deck)
     await db.commit()
 
@@ -95,10 +117,7 @@ async def reset_deck(
     Reset SRS state for all cards in a deck back to 'new'.
     Preserves review_count, lapse_count, last_rating, first_seen_at (for student diagnosis).
     """
-    result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == deck_id))
-    deck = result.scalar_one_or_none()
-    if not deck:
-        raise HTTPException(404, "Deck not found")
+    deck = await _get_deck_owned(deck_id, current_user.id, db)
 
     await db.execute(
         update(Flashcard)
@@ -131,6 +150,13 @@ async def generate(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Verify course ownership
+    course_result = await db.execute(
+        select(Course).where(Course.id == course_id, Course.user_id == current_user.id)
+    )
+    if not course_result.scalar_one_or_none():
+        raise HTTPException(404, "Course not found")
+
     # Fetch all processed non-exam documents for the course
     docs_result = await db.execute(
         select(Document).where(
@@ -245,7 +271,12 @@ async def list_flashcards(
     from sqlalchemy import or_, and_
     from datetime import date
 
-    query = select(Flashcard).order_by(Flashcard.next_review_date)
+    query = (
+        select(Flashcard)
+        .join(Course, Flashcard.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+        .order_by(Flashcard.next_review_date)
+    )
     if course_id:
         query = query.where(Flashcard.course_id == course_id)
     if due_only:
@@ -273,10 +304,7 @@ async def update_card(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Flashcard).where(Flashcard.id == card_id))
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(404, "Flashcard not found")
+    card = await _get_card_owned(card_id, current_user.id, db)
     if data.front is not None:
         card.front = data.front.strip()
     if data.back is not None:
@@ -293,10 +321,7 @@ async def delete_card(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Flashcard).where(Flashcard.id == card_id))
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(404, "Flashcard not found")
+    card = await _get_card_owned(card_id, current_user.id, db)
     if card.deck_id:
         deck_result = await db.execute(select(FlashcardDeck).where(FlashcardDeck.id == card.deck_id))
         deck = deck_result.scalar_one_or_none()
@@ -319,10 +344,7 @@ async def review_flashcard(
     Legacy single-card review endpoint (no session tracking).
     Delegates to the SRS scheduler. Kept for backward compatibility.
     """
-    result = await db.execute(select(Flashcard).where(Flashcard.id == card_id))
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(404, "Flashcard not found")
+    card = await _get_card_owned(card_id, current_user.id, db)
 
     grade = data.quality + 1  # quality 0-3 → grade 1-4
     now = datetime.now(timezone.utc)
@@ -400,7 +422,9 @@ async def get_next_card(
     Get the next card to show in the session.
     Returns card=null when the session is complete (no more eligible cards).
     """
-    sess_result = await db.execute(select(StudySession).where(StudySession.id == session_id))
+    sess_result = await db.execute(
+        select(StudySession).where(StudySession.id == session_id, StudySession.user_id == current_user.id)
+    )
     sess = sess_result.scalar_one_or_none()
     if not sess:
         raise HTTPException(404, "Session not found")
@@ -448,7 +472,9 @@ async def session_review_card(
     Submit a card review during a session.
     Updates card memory state, writes ReviewLog, updates session counters.
     """
-    sess_result = await db.execute(select(StudySession).where(StudySession.id == session_id))
+    sess_result = await db.execute(
+        select(StudySession).where(StudySession.id == session_id, StudySession.user_id == current_user.id)
+    )
     sess = sess_result.scalar_one_or_none()
     if not sess:
         raise HTTPException(404, "Session not found")
@@ -570,7 +596,9 @@ async def end_session(
     current_user: User = Depends(get_current_user),
 ):
     """Mark a session as ended and return final stats."""
-    sess_result = await db.execute(select(StudySession).where(StudySession.id == session_id))
+    sess_result = await db.execute(
+        select(StudySession).where(StudySession.id == session_id, StudySession.user_id == current_user.id)
+    )
     sess = sess_result.scalar_one_or_none()
     if not sess:
         raise HTTPException(404, "Session not found")

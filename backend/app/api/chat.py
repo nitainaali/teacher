@@ -61,7 +61,10 @@ async def list_sessions(
     )
     result = await db.execute(
         select(ChatSession, first_msg_subq.label("first_message"))
-        .where(ChatSession.source.notin_(["homework_chat", "exam_chat"]))  # hide follow-up chats
+        .where(
+            ChatSession.source.notin_(["homework_chat", "exam_chat"]),  # hide follow-up chats
+            ChatSession.user_id == current_user.id,
+        )
         .order_by(ChatSession.updated_at.desc())
     )
     rows = result.all()
@@ -84,6 +87,11 @@ async def get_messages(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    session_result = await db.execute(
+        select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
+    )
+    if not session_result.scalar_one_or_none():
+        raise HTTPException(404, "Session not found")
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -98,7 +106,9 @@ async def delete_session(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+    result = await db.execute(
+        select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == current_user.id)
+    )
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(404, "Session not found")

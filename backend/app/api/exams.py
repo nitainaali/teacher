@@ -10,13 +10,26 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import ExamUpload, Document, ExamAnalysisRecord, User
+from app.models.models import ExamUpload, Document, ExamAnalysisRecord, User, Course
 from app.schemas.schemas import ExamUploadOut, ExamAnalysisRecordOut
 from app.services.exam_analyzer import analyze_exam_stream
 from app.services.document_processor import _pdf_to_base64_images
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/exams", tags=["exams"])
+
+
+async def _get_analysis_owned(record_id: str, user_id: str, db: AsyncSession) -> ExamAnalysisRecord:
+    """Fetch an analysis record and verify it belongs to the current user. Raises 404 otherwise."""
+    result = await db.execute(
+        select(ExamAnalysisRecord)
+        .join(Course, ExamAnalysisRecord.course_id == Course.id)
+        .where(ExamAnalysisRecord.id == record_id, Course.user_id == user_id)
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(404, "Analysis record not found")
+    return record
 
 
 def _file_to_base64_images(file_path: str) -> list[str]:
@@ -63,6 +76,13 @@ async def upload_exam(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Verify course ownership
+    course_result = await db.execute(
+        select(Course).where(Course.id == course_id, Course.user_id == current_user.id)
+    )
+    if not course_result.scalar_one_or_none():
+        raise HTTPException(404, "Course not found")
+
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     ext = Path(file.filename or "exam.pdf").suffix
@@ -109,7 +129,11 @@ async def analyze_exam(
     current_user: User = Depends(get_current_user),
 ):
     """Stream full exam analysis as SSE. Returns per-topic feedback in markdown."""
-    result = await db.execute(select(ExamUpload).where(ExamUpload.id == exam_id))
+    result = await db.execute(
+        select(ExamUpload)
+        .join(Course, ExamUpload.course_id == Course.id)
+        .where(ExamUpload.id == exam_id, Course.user_id == current_user.id)
+    )
     exam = result.scalar_one_or_none()
     if not exam:
         raise HTTPException(404, "Exam not found")
@@ -183,7 +207,12 @@ async def list_exam_analyses(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(ExamAnalysisRecord).order_by(ExamAnalysisRecord.created_at.desc())
+    query = (
+        select(ExamAnalysisRecord)
+        .join(Course, ExamAnalysisRecord.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+        .order_by(ExamAnalysisRecord.created_at.desc())
+    )
     if course_id:
         query = query.where(ExamAnalysisRecord.course_id == course_id)
     result = await db.execute(query)
@@ -196,13 +225,7 @@ async def get_exam_analysis(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
-    )
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(404, "Analysis record not found")
-    return record
+    return await _get_analysis_owned(record_id, current_user.id, db)
 
 
 @router.patch("/analyses/{record_id}", response_model=ExamAnalysisRecordOut)
@@ -212,12 +235,7 @@ async def update_exam_analysis(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
-    )
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(404, "Analysis record not found")
+    record = await _get_analysis_owned(record_id, current_user.id, db)
     if "chat_session_id" in body:
         record.chat_session_id = body["chat_session_id"]
     await db.commit()
@@ -231,12 +249,7 @@ async def delete_exam_analysis(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(ExamAnalysisRecord).where(ExamAnalysisRecord.id == record_id)
-    )
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(404, "Analysis record not found")
+    record = await _get_analysis_owned(record_id, current_user.id, db)
     await db.delete(record)
     await db.commit()
 
@@ -247,7 +260,12 @@ async def list_exams(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(ExamUpload).order_by(ExamUpload.created_at.desc())
+    query = (
+        select(ExamUpload)
+        .join(Course, ExamUpload.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+        .order_by(ExamUpload.created_at.desc())
+    )
     if course_id:
         query = query.where(ExamUpload.course_id == course_id)
     result = await db.execute(query)

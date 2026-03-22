@@ -30,8 +30,8 @@ async def _process_in_new_session(document_id: str) -> None:
     async with AsyncSessionLocal() as db:
         try:
             await process_shared_document(document_id, db)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[shared document processor] error processing {document_id}: {e}")
 
 
 # ── Shared Courses ────────────────────────────────────────────────────────────
@@ -108,6 +108,13 @@ async def upload_shared_document(
     shared_course = result.scalar_one_or_none()
     if not shared_course:
         raise HTTPException(404, "Shared course not found")
+
+    allowed_types = {"application/pdf", "image/png", "image/jpeg", "image/jpg"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: PDF, PNG, JPEG.",
+        )
 
     content = await file.read()
 

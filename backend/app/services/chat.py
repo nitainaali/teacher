@@ -23,6 +23,7 @@ async def get_or_create_session(
     course_id: Optional[str],
     knowledge_mode: str,
     source: str = "chat",
+    user_id: Optional[str] = None,
 ) -> ChatSession:
     if session_id:
         result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
@@ -30,7 +31,7 @@ async def get_or_create_session(
         if session:
             return session
 
-    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode, source=source)
+    session = ChatSession(course_id=course_id, knowledge_mode=knowledge_mode, source=source, user_id=user_id)
     db.add(session)
     await db.flush()
     return session
@@ -48,7 +49,7 @@ async def send_message_stream(
     context_seed: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    session = await get_or_create_session(db, session_id, course_id, knowledge_mode, source=source or "chat")
+    session = await get_or_create_session(db, session_id, course_id, knowledge_mode, source=source or "chat", user_id=user_id)
 
     # If a context_seed is provided, insert it as the first assistant message in a
     # brand-new session so that all follow-up turns have the full analysis in context.

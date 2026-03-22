@@ -54,7 +54,11 @@ async def get_diagnosis(
         fc_q = fc_q.where(LearningEvent.course_id == course_id)
     flashcards_studied = (await db.execute(fc_q)).scalar() or 0
 
-    qz_q = select(func.count()).select_from(QuizSession).where(QuizSession.score.isnot(None))
+    qz_q = (
+        select(func.count()).select_from(QuizSession)
+        .join(Course, QuizSession.course_id == Course.id)
+        .where(QuizSession.score.isnot(None), Course.user_id == current_user.id)
+    )
     if course_id:
         qz_q = qz_q.where(QuizSession.course_id == course_id)
     quizzes_completed = (await db.execute(qz_q)).scalar() or 0
@@ -68,7 +72,11 @@ async def get_diagnosis(
         hw_q = hw_q.where(HomeworkSubmission.course_id == course_id)
     homework_submitted = (await db.execute(hw_q)).scalar() or 0
 
-    ex_q = select(func.count()).select_from(ExamAnalysisRecord)
+    ex_q = (
+        select(func.count()).select_from(ExamAnalysisRecord)
+        .join(Course, ExamAnalysisRecord.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+    )
     if course_id:
         ex_q = ex_q.where(ExamAnalysisRecord.course_id == course_id)
     exams_submitted = (await db.execute(ex_q)).scalar() or 0

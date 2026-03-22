@@ -8,7 +8,7 @@ from sqlalchemy import select
 from typing import List, Optional
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import QuizSession, QuizQuestion, User
+from app.models.models import QuizSession, QuizQuestion, User, Course
 from app.schemas.schemas import (
     QuizGenerateRequest, QuizSessionOut, QuizSessionDetail,
     QuizQuestionOut, QuizSubmitRequest, QuizSessionUpdate,
@@ -19,6 +19,19 @@ from app.services import student_intelligence
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/quizzes", tags=["quizzes"])
+
+
+async def _get_quiz_owned(session_id: str, user_id: str, db: AsyncSession) -> QuizSession:
+    """Fetch a quiz session and verify it belongs to the current user. Raises 404 otherwise."""
+    result = await db.execute(
+        select(QuizSession)
+        .join(Course, QuizSession.course_id == Course.id)
+        .where(QuizSession.id == session_id, Course.user_id == user_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(404, "Quiz session not found")
+    return session
 
 
 async def _write_quiz_completion_events(
@@ -55,6 +68,13 @@ async def create_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Verify course ownership
+    course_check = await db.execute(
+        select(Course).where(Course.id == data.course_id, Course.user_id == current_user.id)
+    )
+    if not course_check.scalar_one_or_none():
+        raise HTTPException(404, "Course not found")
+
     try:
         session = await generate_quiz(
             db=db,
@@ -80,7 +100,12 @@ async def list_quizzes(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(QuizSession).order_by(QuizSession.created_at.desc())
+    query = (
+        select(QuizSession)
+        .join(Course, QuizSession.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+        .order_by(QuizSession.created_at.desc())
+    )
     if course_id:
         query = query.where(QuizSession.course_id == course_id)
     result = await db.execute(query)
@@ -93,12 +118,7 @@ async def get_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(QuizSession).where(QuizSession.id == session_id)
-    )
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(404, "Quiz session not found")
+    session = await _get_quiz_owned(session_id, current_user.id, db)
 
     q_result = await db.execute(
         select(QuizQuestion).where(QuizQuestion.session_id == session_id)
@@ -123,10 +143,7 @@ async def update_quiz_metadata(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(404, "Quiz session not found")
+    session = await _get_quiz_owned(session_id, current_user.id, db)
     if data.topic is not None:
         session.topic = data.topic
     if data.difficulty is not None:
@@ -142,10 +159,7 @@ async def delete_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(404, "Quiz session not found")
+    session = await _get_quiz_owned(session_id, current_user.id, db)
     await db.delete(session)
     await db.commit()
 
@@ -157,17 +171,14 @@ async def submit_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(404, "Quiz session not found")
+    session = await _get_quiz_owned(session_id, current_user.id, db)
     if session.completed_at:
         raise HTTPException(400, "Quiz already submitted")
 
     session = await grade_quiz(db, session, data.answers)
     await db.commit()
     await db.refresh(session)
-    return await get_quiz(session_id, db)
+    return await get_quiz(session_id, db, current_user)
 
 
 @router.post("/{session_id}/grade-stream")
@@ -178,10 +189,7 @@ async def grade_quiz_sse(
     current_user: User = Depends(get_current_user),
 ):
     """SSE endpoint: streams per-question grading results as they complete."""
-    result = await db.execute(select(QuizSession).where(QuizSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(404, "Quiz session not found")
+    session = await _get_quiz_owned(session_id, current_user.id, db)
     if session.completed_at:
         raise HTTPException(400, "Quiz already submitted")
 

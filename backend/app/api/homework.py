@@ -151,7 +151,10 @@ async def get_homework_submission(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
+        select(HomeworkSubmission).where(
+            HomeworkSubmission.id == submission_id,
+            HomeworkSubmission.user_id == current_user.id,
+        )
     )
     sub = result.scalar_one_or_none()
     if not sub:
@@ -167,7 +170,10 @@ async def update_homework_submission(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
+        select(HomeworkSubmission).where(
+            HomeworkSubmission.id == submission_id,
+            HomeworkSubmission.user_id == current_user.id,
+        )
     )
     sub = result.scalar_one_or_none()
     if not sub:
@@ -188,7 +194,10 @@ async def delete_homework_submission(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(HomeworkSubmission).where(HomeworkSubmission.id == submission_id)
+        select(HomeworkSubmission).where(
+            HomeworkSubmission.id == submission_id,
+            HomeworkSubmission.user_id == current_user.id,
+        )
     )
     sub = result.scalar_one_or_none()
     if not sub:

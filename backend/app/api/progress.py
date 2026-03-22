@@ -18,11 +18,32 @@ async def get_progress(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    doc_q = select(func.count()).select_from(Document)
-    card_q = select(func.count()).select_from(Flashcard)
-    due_q = select(func.count()).select_from(Flashcard).where(Flashcard.next_review_date <= date.today())
-    quiz_q = select(func.count()).select_from(QuizSession)
-    avg_q = select(func.avg(QuizSession.score)).where(QuizSession.score.isnot(None))
+    from app.models.models import Course
+    doc_q = (
+        select(func.count()).select_from(Document)
+        .join(Course, Document.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+    )
+    card_q = (
+        select(func.count()).select_from(Flashcard)
+        .join(Course, Flashcard.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+    )
+    due_q = (
+        select(func.count()).select_from(Flashcard)
+        .join(Course, Flashcard.course_id == Course.id)
+        .where(Flashcard.next_review_date <= date.today(), Course.user_id == current_user.id)
+    )
+    quiz_q = (
+        select(func.count()).select_from(QuizSession)
+        .join(Course, QuizSession.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+    )
+    avg_q = (
+        select(func.avg(QuizSession.score))
+        .join(Course, QuizSession.course_id == Course.id)
+        .where(QuizSession.score.isnot(None), Course.user_id == current_user.id)
+    )
 
     if course_id:
         doc_q = doc_q.where(Document.course_id == course_id)

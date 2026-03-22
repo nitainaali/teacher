@@ -300,6 +300,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     course_id: Mapped[str | None] = mapped_column(String, ForeignKey("courses.id", ondelete="SET NULL"))
     knowledge_mode: Mapped[str] = mapped_column(String(20), default="general")  # course_only|general
     source: Mapped[str] = mapped_column(String(50), default="chat")  # "chat" | "homework_chat"
