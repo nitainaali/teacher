@@ -1,13 +1,19 @@
-from sentence_transformers import SentenceTransformer
 from typing import List
 import asyncio
 
-_model: SentenceTransformer | None = None
+# Intentionally NOT imported at module level — sentence_transformers pulls in torch (~200 MB)
+# and transformers (~150 MB) the moment it is imported, even before any model is loaded.
+# On Railway's free tier (512 MB RAM) that alone can push the process over the memory limit
+# and cause it to be killed before it ever serves a request.
+# By deferring the import to _get_model() we keep startup RAM at ~150 MB.
+_model: object | None = None
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model():
     global _model
     if _model is None:
+        # Lazy import — torch is only loaded into memory when the first embedding is requested
+        from sentence_transformers import SentenceTransformer  # noqa: PLC0415
         # paraphrase-multilingual-MiniLM-L12-v2: 384-dim, 50+ languages including Hebrew
         # Replaces English-only all-MiniLM-L6-v2 to fix RAG quality for Hebrew content
         _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
