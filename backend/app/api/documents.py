@@ -103,7 +103,13 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Document).order_by(Document.created_at.desc())
+    # Always scope to the current user's courses via a JOIN
+    query = (
+        select(Document)
+        .join(Course, Document.course_id == Course.id)
+        .where(Course.user_id == current_user.id)
+        .order_by(Document.created_at.desc())
+    )
     if course_id:
         query = query.where(Document.course_id == course_id)
     if upload_source:
