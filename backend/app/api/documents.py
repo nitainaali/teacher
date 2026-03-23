@@ -284,13 +284,16 @@ async def import_from_shared(
 async def delete_all_course_documents(
     course_id: str,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_admin_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """Admin: delete ALL personal documents in a course (files + DB records), regardless of upload_source."""
+    """Delete ALL personal documents in a course the current user owns (files + DB records)."""
     result = await db.execute(
         select(Document)
         .join(Course, Document.course_id == Course.id)
-        .where(Document.course_id == course_id)
+        .where(
+            Document.course_id == course_id,
+            Course.user_id == current_user.id,
+        )
     )
     docs = result.scalars().all()
     for doc in docs:

@@ -421,7 +421,7 @@ export function KnowledgePage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
-        {isAdmin && docs.length === 0 && !docsLoading && (
+        {docs.length === 0 && !docsLoading && (
           <button
             onClick={async () => {
               if (!courseId || !confirm(t("knowledge.confirmDeleteAll"))) return;
