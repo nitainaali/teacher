@@ -279,9 +279,9 @@ def _pdf_to_base64_images(file_path: str) -> list[str]:
         import fitz  # pymupdf
         doc = fitz.open(file_path)
         pages_b64 = []
-        for page_num in range(min(len(doc), 20)):
+        for page_num in range(min(len(doc), 10)):  # 10 pages max (matches _claude_vision_extract limit)
             page = doc[page_num]
-            mat = fitz.Matrix(2, 2)  # 2x zoom for clarity
+            mat = fitz.Matrix(1.5, 1.5)  # 1.5x zoom — sufficient for OCR, ~44% less memory than 2x
             pix = page.get_pixmap(matrix=mat)
             img_bytes = pix.tobytes("png")
             b64 = base64.b64encode(img_bytes).decode()

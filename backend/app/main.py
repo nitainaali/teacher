@@ -72,8 +72,10 @@ async def _recover_shared_documents() -> None:
             print(f"[startup] Reset {len(stuck_ids)} stuck shared document(s) → 'error'")
         if pending_ids:
             print(f"[startup] Requeueing {len(pending_ids)} pending shared document(s)")
-            for doc_id in pending_ids:
-                asyncio.ensure_future(_process_in_new_session(doc_id))
+            async def _requeue_sequentially(ids: list) -> None:
+                for doc_id in ids:
+                    await _process_in_new_session(doc_id)
+            asyncio.ensure_future(_requeue_sequentially(pending_ids))
 
     except Exception as exc:
         print(f"[startup] Could not recover shared documents: {exc}")
