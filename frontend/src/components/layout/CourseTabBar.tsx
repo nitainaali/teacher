@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getCourses, createCourse, updateCourse, reorderCourses, deleteCourse } from "../../api/courses";
 import { getUsers, deleteMyUser, deleteUser, type User } from "../../api/users";
+import { getStorageStats, cleanupStorage, type StorageStats } from "../../api/admin";
 import type { Course } from "../../types";
 import { setLanguage } from "../../i18n";
 import { useUser } from "../../context/UserContext";
@@ -33,6 +34,7 @@ export function CourseTabBar() {
   const { currentUser, clearUser } = useUser();
 
   const [courses, setCourses] = useState<Course[]>([]);
+  const coursesRef = useRef<Course[]>([]); // mirror for use inside async closures
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -63,6 +65,12 @@ export function CourseTabBar() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
+  // Admin: storage management
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [loadingStorage, setLoadingStorage] = useState(false);
+  const [cleaningStorage, setCleaningStorage] = useState(false);
+  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -71,13 +79,24 @@ export function CourseTabBar() {
         const data = await getCourses();
         if (!cancelled) {
           setCourses(data);
+          coursesRef.current = data;
           setLoadingCourses(false);
         }
       } catch {
         if (!cancelled && attempt < 4) {
           setTimeout(() => load(attempt + 1), 1500);
         } else if (!cancelled) {
-          setLoadingCourses(false); // give up after 3 retries, show "+" button
+          setLoadingCourses(false); // give up on this round, show "+" button
+          // If we still have no courses (backend may be restarting), keep probing every 5 s
+          // so the tab bar recovers automatically once the backend comes back up.
+          if (coursesRef.current.length === 0) {
+            setTimeout(() => {
+              if (!cancelled) {
+                setLoadingCourses(true);
+                load(1);
+              }
+            }, 5000);
+          }
         }
       }
     };
@@ -175,14 +194,33 @@ export function CourseTabBar() {
 
   const handleOpenManageUsers = async () => {
     setShowManageUsers(true);
+    setCleanupMsg(null);
     setLoadingUsers(true);
+    setLoadingStorage(true);
     try {
-      const users = await getUsers();
+      const [users, stats] = await Promise.all([getUsers(), getStorageStats()]);
       setAllUsers(users);
+      setStorageStats(stats);
     } catch {
       /* silently fail */
     } finally {
       setLoadingUsers(false);
+      setLoadingStorage(false);
+    }
+  };
+
+  const handleCleanupStorage = async () => {
+    setCleaningStorage(true);
+    setCleanupMsg(null);
+    try {
+      const result = await cleanupStorage();
+      const stats = await getStorageStats();
+      setStorageStats(stats);
+      setCleanupMsg(t("admin.cleanupDone", { files: result.deleted_files, mb: result.freed_mb.toFixed(1) }));
+    } catch {
+      setCleanupMsg(t("admin.cleanupError"));
+    } finally {
+      setCleaningStorage(false);
     }
   };
 
@@ -625,6 +663,45 @@ export function CourseTabBar() {
                 ))}
               </div>
             )}
+
+            {/* Storage management section */}
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              <div className="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wide">
+                {t("admin.storage")}
+              </div>
+              {loadingStorage ? (
+                <p className="text-gray-500 text-xs">{t("common.loading")}</p>
+              ) : storageStats ? (
+                <div className="space-y-1 text-xs text-gray-400">
+                  <div className="flex justify-between">
+                    <span>{t("admin.totalFiles")}</span>
+                    <span className="text-white">{storageStats.total_files} ({storageStats.total_size_mb} MB)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t("admin.orphanedFiles")}</span>
+                    <span className={
+                      (storageStats.orphaned_personal + storageStats.orphaned_shared) > 0
+                        ? "text-yellow-400 font-medium"
+                        : "text-green-400"
+                    }>
+                      {storageStats.orphaned_personal + storageStats.orphaned_shared} ({(storageStats.orphaned_personal_size_mb + storageStats.orphaned_shared_size_mb).toFixed(1)} MB)
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              <button
+                onClick={handleCleanupStorage}
+                disabled={cleaningStorage || loadingStorage}
+                className="mt-2 w-full text-xs bg-red-900/40 hover:bg-red-800/50 text-red-300 hover:text-red-200 disabled:opacity-50 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                {cleaningStorage ? "…" : t("admin.cleanupBtn")}
+              </button>
+
+              {cleanupMsg && (
+                <p className="mt-1.5 text-xs text-center text-green-400">{cleanupMsg}</p>
+              )}
+            </div>
           </div>
         </div>
       )}
