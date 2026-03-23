@@ -720,7 +720,10 @@ export function KnowledgePage() {
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm text-gray-500 shrink-0">📄</span>
                                     <span className="text-sm text-gray-400 truncate flex-1">{d.original_name}</span>
-                                    <span className={`text-xs px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}>
+                                    <span
+                                      className={`text-xs px-1 rounded-full shrink-0 ${STATUS_BADGE_COLORS[d.processing_status] ?? STATUS_BADGE_COLORS.pending}`}
+                                      title={d.processing_status === "error" && d.metadata_?.error ? String(d.metadata_.error) : undefined}
+                                    >
                                       {t("knowledge.status." + d.processing_status)}
                                     </span>
                                     {/* Import to personal course */}
