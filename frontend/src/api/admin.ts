@@ -1,4 +1,4 @@
-import api from "./axios";
+import api from "./client";
 
 export interface StorageStats {
   upload_dir: string;
