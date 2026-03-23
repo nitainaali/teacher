@@ -179,7 +179,14 @@ export function KnowledgePage() {
     for (const file of Array.from(files)) {
       try {
         await uploadToSharedCourse(scId, file);
-      } catch { /* silently fail per-file */ }
+      } catch (err: any) {
+        if (err?.response?.status === 409) {
+          const name = err?.response?.data?.detail?.name || file.name;
+          setToast(t("knowledge.duplicate", { name }));
+        } else {
+          setToast(`${file.name}: ${t("sharedKnowledge.uploadError")}`);
+        }
+      }
     }
     await refreshSharedDocs(scId);
     setUploadingToSharedId(null);
