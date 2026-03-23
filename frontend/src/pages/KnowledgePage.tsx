@@ -285,6 +285,8 @@ export function KnowledgePage() {
     } catch (err: any) {
       if (err?.response?.status === 409) {
         setToast(t("knowledge.duplicate", { name: "" }));
+      } else if (err?.response?.status === 404) {
+        setToast(t("sharedKnowledge.importErrorMissing"));
       } else {
         setToast(t("sharedKnowledge.importError"));
       }

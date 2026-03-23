@@ -497,6 +497,7 @@
     "importToKnowledge": "Import to my course",
     "importedSuccess": "Imported to your knowledge",
     "importError": "Import failed",
+    "importErrorMissing": "File no longer available — please delete and re-upload it to the library",
     "editDoc": "Edit",
     "retryDoc": "Retry processing",
     "importAll": "Import all to my course",

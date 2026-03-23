@@ -497,6 +497,7 @@
     "importToKnowledge": "ייבא לקורס שלי",
     "importedSuccess": "יובא לידע הפנימי",
     "importError": "שגיאה בייבוא",
+    "importErrorMissing": "הקובץ אינו זמין עוד — יש למחוק ולהעלות מחדש לספריה",
     "editDoc": "ערוך",
     "retryDoc": "נסה שוב",
     "importAll": "ייבא הכל לקורס שלי",
