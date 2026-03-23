@@ -501,10 +501,12 @@
     "importToKnowledge": "Import to my course",
     "importedSuccess": "Imported to your knowledge",
     "importError": "Import failed",
+    "importErrorMissing": "File is no longer available in the library",
     "editDoc": "Edit",
     "retryDoc": "Retry processing",
     "importAll": "Import all to my course",
     "importedAllSuccess": "Imported {{count}} file(s) to your knowledge",
+    "importedAllPartial": "Imported {{imported}}, {{failed}} failed",
     "importedAllDuplicate": "All files already in your knowledge"
   },
   "help": {

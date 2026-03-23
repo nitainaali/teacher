@@ -233,12 +233,15 @@ async def import_from_shared(
     if not course_result.scalar_one_or_none():
         raise HTTPException(404, "Course not found or not owned by you")
 
-    # Read source file
+    # Read source file — catch all OS errors, not just FileNotFoundError
     try:
         with open(shared_doc.file_path, "rb") as f:
             content = f.read()
     except FileNotFoundError:
         raise HTTPException(404, "Source file not found on disk")
+    except OSError as e:
+        print(f"[import-from-shared] cannot read {shared_doc.file_path}: {type(e).__name__}: {e}")
+        raise HTTPException(500, "Cannot read source file")
 
     # Duplicate detection within the target course
     content_hash = hashlib.sha256(content).hexdigest()
@@ -257,8 +260,12 @@ async def import_from_shared(
     ext = Path(shared_doc.filename).suffix
     stored_name = f"{uuid.uuid4()}{ext}"
     file_path = upload_dir / stored_name
-    with open(file_path, "wb") as f:
-        f.write(content)
+    try:
+        with open(file_path, "wb") as f:
+            f.write(content)
+    except OSError as e:
+        print(f"[import-from-shared] cannot write {file_path}: {type(e).__name__}: {e}")
+        raise HTTPException(500, "Cannot write file to storage")
 
     doc = Document(
         course_id=body.course_id,

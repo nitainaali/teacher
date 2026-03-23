@@ -501,10 +501,12 @@
     "importToKnowledge": "ייבא לקורס שלי",
     "importedSuccess": "יובא לידע הפנימי",
     "importError": "שגיאה בייבוא",
+    "importErrorMissing": "הקובץ אינו זמין עוד בספרייה",
     "editDoc": "ערוך",
     "retryDoc": "נסה שוב",
     "importAll": "ייבא הכל לקורס שלי",
     "importedAllSuccess": "יובאו {{count}} קבצים לידע הפנימי",
+    "importedAllPartial": "יובאו {{imported}}, {{failed}} נכשלו",
     "importedAllDuplicate": "כל הקבצים כבר קיימים בידע הפנימי"
   },
   "help": {
