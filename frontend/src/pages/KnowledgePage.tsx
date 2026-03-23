@@ -114,7 +114,30 @@ export function KnowledgePage() {
       .catch(() => setSharedCourses([]));
   };
 
-  useEffect(() => { fetchDocs(); }, [courseId]);
+  // Initial load with retry — handles backend restarts (OOM recovery takes ~30s)
+  useEffect(() => {
+    if (!courseId) return;
+    let attempts = 0;
+    const tryFetch = () => {
+      getDocuments(courseId, "knowledge")
+        .then(setDocs)
+        .catch(() => {
+          if (attempts < 3) { attempts++; setTimeout(tryFetch, 2000); }
+        });
+    };
+    tryFetch();
+  }, [courseId]);
+
+  // Poll while any doc is pending/processing so status updates appear automatically
+  useEffect(() => {
+    const hasPending = docs.some(
+      d => d.processing_status === "pending" || d.processing_status === "processing"
+    );
+    if (!hasPending || !courseId) return;
+    const timer = setInterval(fetchDocs, 4000);
+    return () => clearInterval(timer);
+  }, [docs, courseId]);
+
   useEffect(() => { fetchSharedCourses(); }, []);
 
   const toggleDocsOpen = async (scId: string) => {
