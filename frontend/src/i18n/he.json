@@ -506,6 +506,7 @@
     "retryDoc": "נסה שוב",
     "importAll": "ייבא הכל לקורס שלי",
     "importedAllSuccess": "יובאו {{count}} קבצים לידע הפנימי",
+    "importedAllPartial": "יובאו {{imported}}, {{failed}} נכשלו",
     "importedAllDuplicate": "כל הקבצים כבר קיימים בידע הפנימי"
   },
   "help": {

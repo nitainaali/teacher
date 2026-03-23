@@ -387,17 +387,23 @@ export function KnowledgePage() {
     if (!courseId) return;
     setImportingAllId(sc.id);
     let imported = 0;
+    let failed = 0;
     for (const d of sc.docs ?? []) {
       try {
         await importFromShared(d.id, courseId);
         imported++;
-      } catch { /* skip duplicates/errors */ }
+      } catch (err: any) {
+        if (err?.response?.status !== 409) failed++;  // 409 = already exists, not a failure
+      }
     }
-    if (imported > 0) {
-      fetchDocs();
+    fetchDocs();
+    if (failed > 0 && imported > 0) {
+      setToast(t("sharedKnowledge.importedAllPartial", { imported, failed }));
+    } else if (failed > 0) {
+      setToast(t("sharedKnowledge.importError"));
+    } else if (imported > 0) {
       setToast(t("sharedKnowledge.importedAllSuccess", { count: imported }));
     } else {
-      fetchDocs(); // all were duplicates — refresh panel to show existing docs
       setToast(t("sharedKnowledge.importedAllDuplicate"));
     }
     setImportingAllId(null);
