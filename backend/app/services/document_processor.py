@@ -252,7 +252,10 @@ async def _extract_text(file_path: str) -> str:
     if not pages_b64:
         return text  # Return whatever we had
 
-    return await _claude_vision_extract(pages_b64)
+    try:
+        return await _claude_vision_extract(pages_b64)
+    except Exception:
+        return text  # Fall back to pypdf text (scan_quality will be poor)
 
 
 def _pypdf_extract(file_path: str) -> str:
