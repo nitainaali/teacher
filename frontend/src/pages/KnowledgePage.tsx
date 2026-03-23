@@ -122,7 +122,7 @@ export function KnowledgePage() {
       getDocuments(courseId, "knowledge")
         .then(setDocs)
         .catch(() => {
-          if (attempts < 3) { attempts++; setTimeout(tryFetch, 2000); }
+          if (attempts < 10) { attempts++; setTimeout(tryFetch, 3000); }
         });
     };
     tryFetch();
@@ -308,6 +308,7 @@ export function KnowledgePage() {
     } catch (err: any) {
       if (err?.response?.status === 409) {
         setToast(t("knowledge.duplicate", { name: "" }));
+        fetchDocs(); // doc already exists — refresh panel to show it
       } else if (err?.response?.status === 404) {
         setToast(t("sharedKnowledge.importErrorMissing"));
       } else {
@@ -381,6 +382,7 @@ export function KnowledgePage() {
       fetchDocs();
       setToast(t("sharedKnowledge.importedAllSuccess", { count: imported }));
     } else {
+      fetchDocs(); // all were duplicates — refresh panel to show existing docs
       setToast(t("sharedKnowledge.importedAllDuplicate"));
     }
     setImportingAllId(null);
