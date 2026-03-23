@@ -68,6 +68,9 @@ async def _extract_exam_topics(db: AsyncSession, doc: Document) -> None:
         return
     from app.services import student_intelligence
     import json, re as _re
+    # Look up the course owner so events are attributed to the correct user
+    course_row = await db.execute(select(Course.user_id).where(Course.id == doc.course_id))
+    course_user_id = course_row.scalar_one_or_none()
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         prompt = (
@@ -92,12 +95,13 @@ async def _extract_exam_topics(db: AsyncSession, doc: Document) -> None:
                         db=db,
                         event_type="exam_topic",
                         course_id=doc.course_id,
+                        user_id=course_user_id,
                         topic=topic.strip(),
                         details={"document_id": doc.id, "document_name": doc.original_name},
                     )
             await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[document_processor] exam topic extraction failed for {doc.id}: {type(e).__name__}: {e}")
 
 
 async def _extract_document_topics(db: AsyncSession, doc: Document) -> None:
@@ -110,6 +114,9 @@ async def _extract_document_topics(db: AsyncSession, doc: Document) -> None:
         return
     from app.services import student_intelligence
     import json, re as _re
+    # Look up the course owner so events are attributed to the correct user
+    course_row = await db.execute(select(Course.user_id).where(Course.id == doc.course_id))
+    course_user_id = course_row.scalar_one_or_none()
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         prompt = (
@@ -134,12 +141,13 @@ async def _extract_document_topics(db: AsyncSession, doc: Document) -> None:
                         db=db,
                         event_type="document_topic",
                         course_id=doc.course_id,
+                        user_id=course_user_id,
                         topic=topic.strip(),
                         details={"document_id": doc.id, "document_name": doc.original_name},
                     )
             await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[document_processor] document topic extraction failed for {doc.id}: {type(e).__name__}: {e}")
 
 
 async def _refresh_course_topic_groups(db: AsyncSession, course_id: str) -> None:
@@ -198,8 +206,8 @@ async def _refresh_course_topic_groups(db: AsyncSession, course_id: str) -> None
             if merged:
                 course.topics_grouped = merged
                 await db.commit()
-    except Exception:
-        pass  # Silent failure — diagnosis falls back to raw topics
+    except Exception as e:
+        print(f"[document_processor] topic group refresh failed for {course_id}: {type(e).__name__}: {e}")
 
 
 def _text_looks_valid(text: str) -> bool:

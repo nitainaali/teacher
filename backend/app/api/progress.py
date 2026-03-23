@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, or_, and_
 from datetime import date
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.models.models import Document, Flashcard, QuizSession, LearningEvent, User
+from app.models.models import Document, Flashcard, QuizSession, LearningEvent, Course, User
 from app.schemas.schemas import ProgressStats, TopicPerformance
 from app.api.deps import get_current_user
 
@@ -79,15 +79,21 @@ async def get_topic_performance(
         "exam_topic",
         "homework_chat",  # HomeworkChat follow-up messages — not real course topics
     ]
+    # LEFT JOIN with Course so we can scope NULL-user_id events (pre-fix documents) to the
+    # correct user via the course's owner — preventing cross-user leakage.
     query = (
         select(
             LearningEvent.topic,
             func.count().label("event_count"),
         )
+        .join(Course, LearningEvent.course_id == Course.id, isouter=True)
         .where(
             LearningEvent.topic.isnot(None),
             ~LearningEvent.event_type.in_(excluded_event_types),
-            LearningEvent.user_id == current_user.id,
+            or_(
+                LearningEvent.user_id == current_user.id,
+                and_(LearningEvent.user_id == None, Course.user_id == current_user.id),
+            ),
         )
     )
     if course_id:
