@@ -12,9 +12,21 @@ from app.core.config import settings
 from app.models.models import Document, DocumentChunk, Course, LearningEvent
 from app.services.embeddings import embed_texts, chunk_text
 
+# Allow only 1 document to be processed at a time.
+# On Railway's free tier (≤512 MB RAM), running two processing pipelines concurrently
+# (each loading torch + PyMuPDF + Claude Vision responses) causes an OOM kill.
+# Serialising with a semaphore keeps peak RAM at ~1 pipeline's worth.
+_processing_semaphore = asyncio.Semaphore(1)
+
 
 async def process_document(document_id: str, db: AsyncSession) -> None:
     """Full pipeline: PDF → text (via pypdf + Claude Vision fallback) → chunks → embeddings."""
+    async with _processing_semaphore:
+        await _process_document_inner(document_id, db)
+
+
+async def _process_document_inner(document_id: str, db: AsyncSession) -> None:
+    """Inner implementation — called only while holding _processing_semaphore."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:

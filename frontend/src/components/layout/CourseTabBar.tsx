@@ -33,6 +33,7 @@ export function CourseTabBar() {
   const { currentUser, clearUser } = useUser();
 
   const [courses, setCourses] = useState<Course[]>([]);
+  const coursesRef = useRef<Course[]>([]); // mirror for use inside async closures
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -71,13 +72,24 @@ export function CourseTabBar() {
         const data = await getCourses();
         if (!cancelled) {
           setCourses(data);
+          coursesRef.current = data;
           setLoadingCourses(false);
         }
       } catch {
         if (!cancelled && attempt < 4) {
           setTimeout(() => load(attempt + 1), 1500);
         } else if (!cancelled) {
-          setLoadingCourses(false); // give up after 3 retries, show "+" button
+          setLoadingCourses(false); // give up on this round, show "+" button
+          // If we still have no courses (backend may be restarting), keep probing every 5 s
+          // so the tab bar recovers automatically once the backend comes back up.
+          if (coursesRef.current.length === 0) {
+            setTimeout(() => {
+              if (!cancelled) {
+                setLoadingCourses(true);
+                load(1);
+              }
+            }, 5000);
+          }
         }
       }
     };

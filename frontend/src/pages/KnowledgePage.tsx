@@ -105,7 +105,7 @@ export function KnowledgePage() {
 
   const fetchDocs = () => {
     if (!courseId) return;
-    getDocuments(courseId, "knowledge").then(setDocs);
+    getDocuments(courseId, "knowledge").then(setDocs).catch(() => {});
   };
 
   const fetchSharedCourses = () => {

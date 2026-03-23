@@ -13,11 +13,18 @@ from app.services.document_processor import (
     _text_looks_valid,
     _claude_vision_extract,
     _pdf_to_base64_images,
+    _processing_semaphore,  # shared semaphore — user + shared docs serialised together
 )
 
 
 async def process_shared_document(document_id: str, db: AsyncSession) -> None:
     """Process a shared document: extract text, chunk it, and embed chunks."""
+    async with _processing_semaphore:
+        await _process_shared_document_inner(document_id, db)
+
+
+async def _process_shared_document_inner(document_id: str, db: AsyncSession) -> None:
+    """Inner implementation — called only while holding _processing_semaphore."""
     result = await db.execute(select(SharedDocument).where(SharedDocument.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
