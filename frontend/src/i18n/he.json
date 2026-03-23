@@ -85,6 +85,10 @@
     "scanWarning": "לא נסרק כראוי",
     "scanWarningTooltip": "הקובץ עובד אך ייתכן שהתוכן לא חולץ במלואו",
     "retryProcessing": "נסה עיבוד מחדש",
+    "loadError": "שגיאה בטעינת הקבצים",
+    "retryLoad": "נסה שוב",
+    "deleteAllDocs": "מחק את כל קבצי הקורס",
+    "confirmDeleteAll": "האם למחוק את כל הקבצים בקורס זה? פעולה זו אינה הפיכה.",
     "editDoc": "ערוך שם",
     "formats": {
       "pdf": "PDF",

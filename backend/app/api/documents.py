@@ -5,14 +5,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import Document, Course, SharedDocument, User
 from app.schemas.schemas import DocumentOut, DocumentUpdate, ImportFromSharedRequest
 from app.services.document_processor import process_document
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_admin_user
 from typing import List, Optional
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -113,6 +113,7 @@ async def upload_document(
         file_path=str(file_path),
         processing_status="pending",
         content_hash=content_hash,
+        upload_source="knowledge",
     )
     db.add(doc)
     await db.flush()
@@ -140,7 +141,14 @@ async def list_documents(
     if course_id:
         query = query.where(Document.course_id == course_id)
     if upload_source:
-        query = query.where(Document.upload_source == upload_source)
+        if upload_source == "knowledge":
+            # Include rows with NULL upload_source — these are documents created before the
+            # column was added (or before the ORM default fired) and are conceptually "knowledge" docs.
+            query = query.where(
+                or_(Document.upload_source == "knowledge", Document.upload_source == None)
+            )
+        else:
+            query = query.where(Document.upload_source == upload_source)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -270,3 +278,25 @@ async def import_from_shared(
 
     await db.commit()
     return doc
+
+
+@router.delete("/by-course/{course_id}", status_code=204)
+async def delete_all_course_documents(
+    course_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Admin: delete ALL personal documents in a course (files + DB records), regardless of upload_source."""
+    result = await db.execute(
+        select(Document)
+        .join(Course, Document.course_id == Course.id)
+        .where(Document.course_id == course_id)
+    )
+    docs = result.scalars().all()
+    for doc in docs:
+        try:
+            os.remove(doc.file_path)
+        except FileNotFoundError:
+            pass
+        await db.delete(doc)
+    await db.commit()

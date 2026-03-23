@@ -34,3 +34,6 @@ export const updateDocument = (id: string, data: { original_name?: string; doc_t
 
 export const retryDocument = (id: string): Promise<Document> =>
   client.post<Document>(`/api/documents/${id}/retry`).then((r) => r.data);
+
+export const deleteAllCourseDocuments = (courseId: string): Promise<void> =>
+  client.delete(`/api/documents/by-course/${courseId}`).then(() => undefined);

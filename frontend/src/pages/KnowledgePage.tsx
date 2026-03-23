@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getDocuments, uploadDocument, deleteDocument, importFromShared, updateDocument, retryDocument } from "../api/documents";
+import { getDocuments, uploadDocument, deleteDocument, importFromShared, updateDocument, retryDocument, deleteAllCourseDocuments } from "../api/documents";
 import {
   getSharedCourses,
   getSharedDocuments,
@@ -61,6 +61,8 @@ export function KnowledgePage() {
   const isAdmin = currentUser?.is_admin ?? false;
 
   const [docs, setDocs] = useState<Document[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [docsError, setDocsError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadAllDone, setUploadAllDone] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileEntry[]>([]);
@@ -105,7 +107,10 @@ export function KnowledgePage() {
 
   const fetchDocs = () => {
     if (!courseId) return;
-    getDocuments(courseId, "knowledge").then(setDocs).catch(() => {});
+    setDocsError(false);
+    getDocuments(courseId, "knowledge")
+      .then((d) => { setDocs(d); setDocsLoading(false); })
+      .catch(() => { setDocsError(true); setDocsLoading(false); });
   };
 
   const fetchSharedCourses = () => {
@@ -117,12 +122,15 @@ export function KnowledgePage() {
   // Initial load with retry — handles backend restarts (OOM recovery takes ~30s)
   useEffect(() => {
     if (!courseId) return;
+    setDocsLoading(true);
+    setDocsError(false);
     let attempts = 0;
     const tryFetch = () => {
       getDocuments(courseId, "knowledge")
-        .then(setDocs)
+        .then((d) => { setDocs(d); setDocsLoading(false); })
         .catch(() => {
           if (attempts < 10) { attempts++; setTimeout(tryFetch, 3000); }
+          else { setDocsError(true); setDocsLoading(false); }
         });
     };
     tryFetch();
@@ -411,7 +419,22 @@ export function KnowledgePage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">{t("knowledge.title")}</h2>
+        {isAdmin && docs.length === 0 && !docsLoading && (
+          <button
+            onClick={async () => {
+              if (!courseId || !confirm(t("knowledge.confirmDeleteAll"))) return;
+              await deleteAllCourseDocuments(courseId);
+              setDocs([]);
+            }}
+            className="text-xs text-red-500 hover:text-red-400 transition-colors"
+            title={t("knowledge.deleteAllDocs")}
+          >
+            🗑 {t("knowledge.deleteAllDocs")}
+          </button>
+        )}
+      </div>
 
       {deleteError && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg px-3 py-2 text-sm text-red-400">
@@ -810,7 +833,18 @@ export function KnowledgePage() {
 
         {/* ── Left panel — document list ── */}
         <div className="flex-1">
-          {docs.length === 0 ? (
+          {docsLoading ? (
+            <div className="flex items-center justify-center py-16 text-gray-500 text-sm animate-pulse">
+              {t("common.loading")}
+            </div>
+          ) : docsError ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+              <p className="text-red-400 text-sm">{t("knowledge.loadError")}</p>
+              <button onClick={fetchDocs} className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
+                ↺ {t("knowledge.retryLoad")}
+              </button>
+            </div>
+          ) : docs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3 select-none">📂</div>
               <p className="text-white font-semibold mb-1">{t("knowledge.empty")}</p>

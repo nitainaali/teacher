@@ -85,6 +85,10 @@
     "scanWarning": "Poor scan",
     "scanWarningTooltip": "File was processed but content may not have been fully extracted",
     "retryProcessing": "Retry processing",
+    "loadError": "Failed to load documents",
+    "retryLoad": "Try again",
+    "deleteAllDocs": "Delete all course documents",
+    "confirmDeleteAll": "Delete all documents in this course? This cannot be undone.",
     "editDoc": "Edit name",
     "formats": {
       "pdf": "PDF",
