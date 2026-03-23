@@ -473,6 +473,14 @@
     "manageUsers": "נהל משתמשים",
     "deleteUser": "מחק משתמש"
   },
+  "admin": {
+    "storage": "אחסון",
+    "totalFiles": "סה״כ קבצים",
+    "orphanedFiles": "קבצים עזובים",
+    "cleanupBtn": "נקה קבצים עזובים",
+    "cleanupDone": "נוקו {{files}} קבצים, שוחרר {{mb}} MB",
+    "cleanupError": "שגיאה בניקוי"
+  },
   "sharedKnowledge": {
     "title": "ספריית ידע משותף",
     "tabLabel": "ספריה משותפת",
