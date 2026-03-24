@@ -62,6 +62,7 @@ async def generate_quiz(
         max_tokens=3000,
         extra_system=extra_system,
         language=language,
+        model="claude-haiku-4-5-20251001",
     )
 
     questions_data = _parse_json_array(response)
@@ -134,6 +135,7 @@ async def grade_quiz(db: AsyncSession, session: QuizSession, answers: list[dict]
                     db=db,
                     messages=[{"role": "user", "content": grade_prompt}],
                     max_tokens=200,
+                    model="claude-haiku-4-5-20251001",
                 )
                 data = _parse_json_obj(resp)
                 score = float(data.get("score", 0))
@@ -167,6 +169,7 @@ async def _grade_one_ft(
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=200,
+            model="claude-haiku-4-5-20251001",
         )
         data = _parse_json_obj(resp)
         return float(data.get("score", 0)), data.get("feedback", "")
