@@ -379,7 +379,9 @@ export function FlashcardsPage() {
       } else {
         setCurrentCard(resp.card);
       }
-    } catch { /* silently fail */ }
+    } catch {
+      setDeletingCard(false);
+    }
   };
 
   // ── Rename / Delete deck handlers ─────────────────────────────────────────
