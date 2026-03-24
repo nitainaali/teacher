@@ -86,6 +86,7 @@ async def create_quiz(
             difficulty=data.difficulty,
             question_type=data.question_type,
             language=data.language,
+            user_id=current_user.id,
         )
         await db.commit()
         await db.refresh(session)

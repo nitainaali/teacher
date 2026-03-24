@@ -18,19 +18,9 @@ async def generate_quiz(
     difficulty: str = "medium",
     question_type: str = "mixed",
     language: str = "en",
+    user_id: Optional[str] = None,
 ) -> QuizSession:
-    session = QuizSession(
-        course_id=course_id,
-        mode=mode,
-        knowledge_mode=knowledge_mode,
-        total_questions=count,
-        topic=topic,
-        difficulty=difficulty,
-    )
-    db.add(session)
-    await db.flush()
-
-    # Always use course materials (RAG context)
+    # Build RAG context first (read-only DB access)
     query = topic or "general course content"
     context = await rag.retrieve_context(db, query, course_id, top_k=10)
     extra_system = (
@@ -75,6 +65,20 @@ async def generate_quiz(
     )
 
     questions_data = _parse_json_array(response)
+
+    # Only write to DB after Claude responds successfully (avoids dirty state on cancellation)
+    session = QuizSession(
+        course_id=course_id,
+        mode=mode,
+        knowledge_mode=knowledge_mode,
+        total_questions=count,
+        topic=topic,
+        difficulty=difficulty,
+        user_id=user_id,
+    )
+    db.add(session)
+    await db.flush()
+
     for item in questions_data:
         q = QuizQuestion(
             session_id=session.id,
