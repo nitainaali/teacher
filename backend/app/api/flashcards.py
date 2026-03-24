@@ -549,38 +549,16 @@ async def session_review_card(
             user_id=current_user.id,
         )
 
-    # For one-time sessions: temporarily apply schedule to card object for the response,
-    # but only flush the session counters (card state reverts on rollback is fine — we commit)
+    # For one-time sessions: commit session counters only; apply schedule to card in-memory
+    # for preview intervals in the response (never flushed — card state is never persisted).
     if is_one_time:
-        # Apply schedule temporarily so response shows correct interval preview
-        _apply_schedule(card, sched, now)
+        from sqlalchemy.orm.attributes import flag_modified
+        # Ensure SQLAlchemy detects the JSONB mutation on card_exposures
+        flag_modified(sess, 'card_exposures')
         await db.flush()
-        await db.refresh(card)
-        # Rollback card changes — revert card to original state
-        await db.rollback()
-        # Re-apply session counter update (session was rolled back too, re-fetch and update)
-        sess_result2 = await db.execute(select(StudySession).where(StudySession.id == session_id))
-        sess2 = sess_result2.scalar_one_or_none()
-        if sess2:
-            exposures2: dict = dict(sess2.card_exposures or {})
-            exposures2[card.id] = exposures2.get(card.id, 0) + 1
-            sess2.card_exposures = exposures2
-            sess2.last_card_id = card.id
-            sess2.cards_seen_count = (sess2.cards_seen_count or 0) + 1
-            if is_new:
-                sess2.new_cards_seen_count = (sess2.new_cards_seen_count or 0) + 1
-            else:
-                sess2.review_cards_seen_count = (sess2.review_cards_seen_count or 0) + 1
-            if grade == 1:
-                sess2.failed_cards_count = (sess2.failed_cards_count or 0) + 1
-            await db.flush()
-            await db.commit()
-        # Re-fetch card in original state for response
-        card_result2 = await db.execute(select(Flashcard).where(Flashcard.id == data.card_id))
-        card = card_result2.scalar_one()
-        # Compute schedule again and apply temporarily to preview
-        sched2 = schedule_review(card, grade, now)
-        _apply_schedule(card, sched2, now)
+        await db.commit()
+        # Apply schedule in-memory only (not flushed) so response shows preview intervals
+        _apply_schedule(card, sched, now)
         return card
 
     await db.flush()
