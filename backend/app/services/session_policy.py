@@ -287,8 +287,12 @@ async def get_next_card(session: StudySession, db: AsyncSession) -> Optional[Fla
     4. Score all remaining candidates
     5. Return the highest-scoring card
     """
+    from dataclasses import replace as dc_replace
     now = datetime.now(timezone.utc)
     config = get_config(session.mode, session.intent)
+    # One-time sessions show each card exactly once
+    if session.session_type in ("one_time_all", "one_time_learning"):
+        config = dc_replace(config, max_exposures_per_session=1)
     exposures: dict[str, int] = session.card_exposures or {}
 
     # ── Build candidate query ──────────────────────────────────────────────

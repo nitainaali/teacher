@@ -198,7 +198,7 @@ async def generate(
         if not doc.extracted_text:
             errors.append(f"Document '{doc.original_name}' has no extracted text. Skipped.")
             continue
-        max_tokens = max(per_doc_count * 220, 800)
+        max_tokens = max(per_doc_count * 450, 2500)
         prompt = fg.build_flashcard_prompt(
             doc.extracted_text, per_doc_count, card_type, difficulty, topic, guidance
         )

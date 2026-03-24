@@ -142,7 +142,7 @@ class Flashcard(Base):
     course: Mapped["Course"] = relationship("Course", back_populates="flashcards")
     source_document: Mapped["Document | None"] = relationship("Document", back_populates="flashcards")
     deck: Mapped["FlashcardDeck | None"] = relationship("FlashcardDeck", back_populates="cards")
-    review_logs: Mapped[list["ReviewLog"]] = relationship("ReviewLog", back_populates="card")
+    review_logs: Mapped[list["ReviewLog"]] = relationship("ReviewLog", back_populates="card", passive_deletes=True)
 
 
 class StudySession(Base):

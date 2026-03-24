@@ -80,7 +80,7 @@ def build_flashcard_prompt(
         '- "back": the answer, explanation, or verdict (may include LaTeX)\n'
         '- "topic": 2-4 word topic label\n'
         '- "card_type": one of comprehension/memorization/tricks/confusion\n'
-        "Raw JSON array only, no markdown wrapper.\n\n"
+        "IMPORTANT: Output ONLY the raw JSON array. Start your response with [ and end with ]. No preamble, no explanation, no markdown code fences.\n\n"
         f"Study material:\n{doc_text[:5000]}"
     )
 
@@ -138,7 +138,10 @@ async def generate_flashcards(
 
 
 def _parse_json_array(text: str) -> list[dict]:
-    match = re.search(r'\[.*\]', text, re.DOTALL)
+    # Strip markdown code fences if present
+    cleaned = re.sub(r'^```(?:json)?\s*', '', text.strip())
+    cleaned = re.sub(r'\s*```\s*$', '', cleaned.strip())
+    match = re.search(r'\[.*\]', cleaned, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())
