@@ -9,7 +9,7 @@ from sqlalchemy import select, or_
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import Document, Course, SharedDocument, User
+from app.models.models import Document, Course, SharedDocument, SharedDocumentChunk, DocumentChunk, User
 from app.schemas.schemas import DocumentOut, DocumentUpdate, ImportFromSharedRequest
 from app.services.document_processor import process_document
 from app.api.deps import get_current_user, get_admin_user
@@ -38,6 +38,27 @@ async def _process_in_new_session(document_id: str) -> None:
             await process_document(document_id, db)
         except Exception as e:
             print(f"[document processor] error processing {document_id}: {e}")
+
+
+async def _extract_topics_only(doc_id: str, user_id: str) -> None:
+    """Topic extraction only (Haiku) — for docs imported from shared library."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Document).where(Document.id == doc_id))
+        doc = result.scalar_one_or_none()
+        if not doc or not doc.extracted_text:
+            return
+        from app.services.document_processor import (
+            _extract_document_topics, _extract_exam_topics, _refresh_course_topic_groups,
+        )
+        try:
+            if doc.doc_type == "exam":
+                await _extract_exam_topics(db, doc, user_id=user_id)
+            else:
+                await _extract_document_topics(db, doc, user_id=user_id)
+                await _refresh_course_topic_groups(db, doc.course_id, user_id=user_id)
+            await db.commit()
+        except Exception as e:
+            print(f"[topic extraction] error for {doc_id}: {e}")
 
 
 @router.post("/upload", response_model=DocumentOut, status_code=201)
@@ -98,6 +119,15 @@ async def upload_document(
                 detail={"duplicate": True, "name": dup_name.original_name},
             )
 
+    # Check if shared library already has this file processed (avoid re-running Vision+embedding)
+    shared_result = await db.execute(
+        select(SharedDocument).where(
+            SharedDocument.content_hash == content_hash,
+            SharedDocument.processing_status == "done",
+        )
+    )
+    shared_match = shared_result.scalar_one_or_none()
+
     ext = Path(file.filename or "file.pdf").suffix
     stored_name = f"{uuid.uuid4()}{ext}"
     file_path = upload_dir / stored_name
@@ -111,15 +141,32 @@ async def upload_document(
         original_name=file.filename or stored_name,
         doc_type=doc_type,
         file_path=str(file_path),
-        processing_status="pending",
         content_hash=content_hash,
         upload_source="knowledge",
+        extracted_text=shared_match.extracted_text if shared_match else None,
+        processing_status="done" if shared_match else "pending",
+        metadata_=shared_match.metadata_ if shared_match else None,
     )
     db.add(doc)
     await db.flush()
     await db.refresh(doc)
 
-    background_tasks.add_task(_process_in_new_session, doc.id)
+    if shared_match:
+        chunk_res = await db.execute(
+            select(SharedDocumentChunk)
+            .where(SharedDocumentChunk.shared_document_id == shared_match.id)
+            .order_by(SharedDocumentChunk.chunk_index)
+        )
+        for sc in chunk_res.scalars().all():
+            db.add(DocumentChunk(
+                document_id=doc.id,
+                chunk_index=sc.chunk_index,
+                content=sc.content,
+                embedding=sc.embedding,
+            ))
+        background_tasks.add_task(_extract_topics_only, doc.id, current_user.id)
+    else:
+        background_tasks.add_task(_process_in_new_session, doc.id)
 
     return doc
 
@@ -273,17 +320,34 @@ async def import_from_shared(
         original_name=shared_doc.original_name,
         doc_type=shared_doc.doc_type,
         file_path=str(file_path),
-        processing_status="pending",
         content_hash=content_hash,
         upload_source="knowledge",
+        extracted_text=shared_doc.extracted_text,
+        processing_status="done" if shared_doc.processing_status == "done" else "pending",
+        metadata_=shared_doc.metadata_ if shared_doc.processing_status == "done" else None,
     )
     db.add(doc)
     await db.flush()
-    await db.refresh(doc)
 
-    background_tasks.add_task(_process_in_new_session, doc.id)
+    if shared_doc.processing_status == "done":
+        chunk_res = await db.execute(
+            select(SharedDocumentChunk)
+            .where(SharedDocumentChunk.shared_document_id == shared_doc.id)
+            .order_by(SharedDocumentChunk.chunk_index)
+        )
+        for sc in chunk_res.scalars().all():
+            db.add(DocumentChunk(
+                document_id=doc.id,
+                chunk_index=sc.chunk_index,
+                content=sc.content,
+                embedding=sc.embedding,
+            ))
+        background_tasks.add_task(_extract_topics_only, doc.id, current_user.id)
+    else:
+        background_tasks.add_task(_process_in_new_session, doc.id)
 
     await db.commit()
+    await db.refresh(doc)
     return doc
 
 
