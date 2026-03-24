@@ -354,7 +354,10 @@ def estimate_remaining(session: StudySession, total_cards: int) -> int:
     Rough estimate of cards remaining in the session.
     Used for UX display only — intentionally approximate.
     """
+    from dataclasses import replace as dc_replace
     config = get_config(session.mode, session.intent)
+    if session.session_type in ("one_time_all", "one_time_learning"):
+        config = dc_replace(config, max_exposures_per_session=1)
     exposures = session.card_exposures or {}
 
     # Cards that still have remaining capacity
