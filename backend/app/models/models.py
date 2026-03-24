@@ -208,6 +208,7 @@ class QuizSession(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     course_id: Mapped[str] = mapped_column(String, ForeignKey("courses.id", ondelete="CASCADE"))
+    user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     mode: Mapped[str] = mapped_column(String(20), nullable=False)  # practice|exam
     knowledge_mode: Mapped[str] = mapped_column(String(20), nullable=False)  # course_only|general
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
