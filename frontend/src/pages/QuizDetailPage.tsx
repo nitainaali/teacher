@@ -266,7 +266,9 @@ function QuizQuestionCard({
                   disabled={locked}
                   className="accent-blue-500"
                 />
-                <span className="text-sm">{opt.label}</span>
+                <span className="text-sm leading-snug [&_p]:m-0 [&_.katex-display]:my-0">
+                  <MarkdownContent content={opt.label} />
+                </span>
               </label>
             );
           })}

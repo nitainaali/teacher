@@ -49,6 +49,7 @@ async def generate_quiz(
         "{\"label\": \"...\", \"value\": \"B\"}, "
         "{\"label\": \"...\", \"value\": \"C\"}, "
         "{\"label\": \"...\", \"value\": \"D\"}]; for free_text: null\n"
+        "  IMPORTANT: in option labels use only inline math $...$ (never display math $$...$$)\n"
         "  correct_answer: for multiple_choice, the letter A/B/C/D; "
         "for free_text, the complete correct answer\n"
         "  topic: 2-4 word topic label\n"
