@@ -113,6 +113,7 @@ async def generate_flashcards(
         course_id=course_id,
         max_tokens=max_tokens,
         language=language,
+        model="claude-haiku-4-5-20251001",
     )
 
     cards_data = _parse_json_array(response)
