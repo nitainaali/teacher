@@ -25,10 +25,13 @@ async def topic_summary(
     user_id = current_user.id
 
     async def event_generator():
-        # Only search knowledge documents (not exam uploads) for topic summaries
-        context = await rag.retrieve_context(
-            db, data.topic, data.course_id, top_k=15, upload_source="knowledge"
+        import re as _re
+
+        # Comprehensive RAG: top-k global + min 2 chunks from every uncovered doc
+        context, source_names = await rag.retrieve_context_comprehensive(
+            db, data.topic, data.course_id, top_k=15, min_per_doc=2
         )
+
         if context:
             extra_system = (
                 f"STRICT RULE: Summarize the topic '{data.topic}' EXCLUSIVELY from the course materials provided below. "
@@ -54,6 +57,9 @@ async def topic_summary(
             "3. **Important properties and rules**\n"
             "4. **Common applications and examples**\n"
             "5. **Common mistakes to avoid**\n"
+            "FORMATTING RULE: Every display math equation ($$...$$) MUST appear on its own "
+            "separate line with a blank line before and after it — never embed $$...$$ "
+            "inside a sentence or alongside other text on the same line.\n"
             f"{guidance_str}"
         )
 
@@ -78,6 +84,11 @@ async def topic_summary(
             yield f"data: [ERROR: {error_msg}]\n\n"
             yield "data: [DONE]\n\n"
             return
+
+        # Append sources footer so the user can see which documents were scanned
+        if source_names:
+            sources_footer = "\n\n---\n📚 **מקורות שנסרקו:** " + " · ".join(source_names)
+            full_response += sources_footer
 
         # Auto-save summary to DB after streaming completes
         try:
