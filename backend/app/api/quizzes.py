@@ -208,24 +208,40 @@ async def grade_quiz_sse(
     user_id = current_user.id
 
     async def generate():
-        async for event in grade_quiz_stream_gen(db, questions, system_prompt):
+        async for event in grade_quiz_stream_gen(questions, system_prompt):
             yield event
-        # Save final score using a fresh session (avoids stale-state after multiple flushes)
+        # Bulk-save all grading results in a single fresh session after streaming
         total = sum(q.points_possible for q in questions.values())
         earned = sum((q.points_earned or 0.0) for q in questions.values())
         final_score = (earned / total * 100) if total > 0 else 0
-        async with AsyncSessionLocal() as save_db:
-            result2 = await save_db.execute(select(QuizSession).where(QuizSession.id == session_id))
-            s = result2.scalar_one_or_none()
-            if s:
-                s.score = final_score
-                s.completed_at = datetime.now(timezone.utc)
-                # Write per-topic quiz_complete events for diagnosis
-                try:
-                    await _write_quiz_completion_events(save_db, questions, session.course_id, user_id=user_id)
-                except Exception:
-                    pass
+        try:
+            async with AsyncSessionLocal() as save_db:
+                # Persist per-question grading results
+                for q in questions.values():
+                    q_res = await save_db.execute(
+                        select(QuizQuestion).where(QuizQuestion.id == q.id)
+                    )
+                    q_obj = q_res.scalar_one_or_none()
+                    if q_obj:
+                        q_obj.points_earned = q.points_earned
+                        q_obj.ai_feedback = q.ai_feedback
+                # Persist session score
+                s_res = await save_db.execute(
+                    select(QuizSession).where(QuizSession.id == session_id)
+                )
+                s = s_res.scalar_one_or_none()
+                if s:
+                    s.score = final_score
+                    s.completed_at = datetime.now(timezone.utc)
+                    try:
+                        await _write_quiz_completion_events(
+                            save_db, questions, session.course_id, user_id=user_id
+                        )
+                    except Exception:
+                        pass
                 await save_db.commit()
+        except Exception:
+            pass  # DB save failure must not block the complete event
         yield f"data: {json.dumps({'type': 'complete', 'score': final_score})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

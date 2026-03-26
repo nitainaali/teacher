@@ -179,11 +179,11 @@ async def _grade_one_ft(
 
 
 async def grade_quiz_stream_gen(
-    db: AsyncSession,
     questions: dict,      # {q_id: QuizQuestion} — student_answer already saved
     system_prompt: str,
 ) -> AsyncIterator[str]:
-    """Async generator yielding SSE event strings for the grade-stream endpoint."""
+    """Async generator yielding SSE event strings for the grade-stream endpoint.
+    Only updates in-memory objects — no DB access (avoids MissingGreenlet in StreamingResponse)."""
     mc_qs = [(qid, q) for qid, q in questions.items() if q.question_type == "multiple_choice"]
     ft_qs = [(qid, q) for qid, q in questions.items() if q.question_type != "multiple_choice"]
 
@@ -192,7 +192,6 @@ async def grade_quiz_stream_gen(
         correct = (q.student_answer or "").strip().upper() == (q.correct_answer or "").strip().upper()
         q.points_earned = q.points_possible if correct else 0.0
         q.ai_feedback = "Correct!" if correct else f"Correct answer: {q.correct_answer}"
-        await db.flush()
         yield f"data: {json.dumps({'type': 'graded', 'question_id': qid, 'points_earned': q.points_earned, 'points_possible': q.points_possible, 'ai_feedback': q.ai_feedback, 'correct_answer': q.correct_answer})}\n\n"
 
     # Signal free-text questions as "checking"
@@ -212,7 +211,6 @@ async def grade_quiz_stream_gen(
         q = questions[qid]
         q.points_earned = score * q.points_possible
         q.ai_feedback = feedback
-        await db.flush()
         yield f"data: {json.dumps({'type': 'graded', 'question_id': qid, 'points_earned': q.points_earned, 'points_possible': q.points_possible, 'ai_feedback': feedback, 'correct_answer': q.correct_answer})}\n\n"
 
 
