@@ -328,7 +328,7 @@ export function QuizzesPage() {
                       <button
                         onClick={() => handleOpen(s)}
                         className="text-gray-400 hover:text-white text-sm px-1 transition-colors"
-                        title="Open"
+                        title={t("quizzes.retakeQuiz")}
                       >
                         ▶
                       </button>
