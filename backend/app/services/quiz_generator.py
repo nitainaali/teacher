@@ -1,10 +1,12 @@
 import asyncio
 import json
+import random
 import re
 from typing import Optional, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from app.models.models import QuizSession, QuizQuestion
+from app.models.models import QuizSession, QuizQuestion, LearningEvent
 from app.services import claude, rag
 
 
@@ -20,8 +22,30 @@ async def generate_quiz(
     language: str = "en",
     user_id: Optional[str] = None,
 ) -> QuizSession:
+    # When no topic is given, randomly assign one course topic per question
+    assigned_topics: list[str] | None = None
+    if not topic:
+        topics_result = await db.execute(
+            select(LearningEvent.topic)
+            .where(
+                LearningEvent.course_id == course_id,
+                LearningEvent.event_type == "document_topic",
+                LearningEvent.topic.isnot(None),
+            )
+            .distinct()
+        )
+        available_topics = [row[0] for row in topics_result.all()]
+        if available_topics:
+            assigned_topics = [random.choice(available_topics) for _ in range(count)]
+
     # Build RAG context first (read-only DB access)
-    query = topic or "general course content"
+    if assigned_topics:
+        query = ", ".join(dict.fromkeys(assigned_topics))  # unique topics, order-preserving
+    elif topic:
+        query = topic
+    else:
+        query = "general course content"
+
     context = await rag.retrieve_context(db, query, course_id, top_k=10)
     extra_system = (
         "Use ONLY the following course materials to generate questions. "
@@ -29,7 +53,6 @@ async def generate_quiz(
         f"{context}"
     ) if context else None
 
-    topic_str = f" on the topic: {topic}" if topic else ""
     difficulty_map = {"easy": "basic conceptual", "medium": "intermediate", "hard": "advanced and challenging"}
     difficulty_desc = difficulty_map.get(difficulty, "intermediate")
     if question_type == "multiple_choice":
@@ -38,8 +61,20 @@ async def generate_quiz(
         qtype_instruction = "Use only free_text questions."
     else:
         qtype_instruction = "Mix multiple choice and free text questions."
+
+    if assigned_topics:
+        topic_assignments = "\n".join(f"{i+1}. {t}" for i, t in enumerate(assigned_topics))
+        topic_instruction = (
+            f"Generate exactly {count} {difficulty_desc} questions — "
+            f"one question per topic in this exact list:\n{topic_assignments}\n"
+        )
+    elif topic:
+        topic_instruction = f"Generate {count} {difficulty_desc} quiz questions on the topic: {topic}\n"
+    else:
+        topic_instruction = f"Generate {count} {difficulty_desc} quiz questions\n"
+
     prompt = (
-        f"Generate {count} {difficulty_desc} quiz questions{topic_str} "
+        f"{topic_instruction}"
         f"for an electrical engineering student. {qtype_instruction}\n"
         "Return a JSON array. Each element must have exactly these fields:\n"
         "  question_text: string\n"
