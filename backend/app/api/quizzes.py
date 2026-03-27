@@ -165,6 +165,26 @@ async def delete_quiz(
     await db.commit()
 
 
+@router.post("/{session_id}/reset", response_model=QuizSessionOut)
+async def reset_quiz(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reset a completed quiz so it can be retaken from scratch."""
+    session = await _get_quiz_owned(session_id, current_user.id, db)
+    session.completed_at = None
+    session.score = None
+    q_result = await db.execute(select(QuizQuestion).where(QuizQuestion.session_id == session_id))
+    for q in q_result.scalars().all():
+        q.student_answer = None
+        q.points_earned = None
+        q.ai_feedback = None
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
 @router.post("/{session_id}/submit", response_model=QuizSessionDetail)
 async def submit_quiz(
     session_id: str,
