@@ -63,7 +63,8 @@ export function QuizDetailPage() {
 
     try {
       const userId = getCurrentUserId();
-      const resp = await fetch(`/api/quizzes/${id}/grade-stream`, {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      const resp = await fetch(`${apiBase}/api/quizzes/${id}/grade-stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
