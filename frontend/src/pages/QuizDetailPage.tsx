@@ -22,6 +22,7 @@ export function QuizDetailPage() {
   const { t } = useTranslation();
 
   const [quiz, setQuiz] = useState<QuizSessionDetail | null>(null);
+  const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<QuizPhase>("taking");
   const [gradingStatus, setGradingStatus] = useState<Record<string, QuestionStatus>>({});
@@ -32,32 +33,38 @@ export function QuizDetailPage() {
     if (id) getQuiz(id).then(setQuiz);
   }, [id]);
 
-  // If quiz is already completed on load, populate results immediately
+  // Set shuffled question order and populate results if already completed
   useEffect(() => {
-    if (!quiz?.completed_at) return;
-    const statuses: Record<string, QuestionStatus> = {};
-    const results: Record<string, GradingResult> = {};
-    quiz.questions.forEach((q) => {
-      statuses[q.id] = "graded";
-      results[q.id] = {
-        points_earned: q.points_earned ?? 0,
-        points_possible: q.points_possible,
-        ai_feedback: q.ai_feedback,
-        correct_answer: q.correct_answer,
-      };
-    });
-    setGradingStatus(statuses);
-    setGradingResults(results);
-    setFinalScore(quiz.score);
-    setPhase("done");
-  }, [quiz?.id]);
+    if (!quiz) return;
+    if (quiz.completed_at) {
+      setShuffledQuestions(quiz.questions);
+      const statuses: Record<string, QuestionStatus> = {};
+      const results: Record<string, GradingResult> = {};
+      quiz.questions.forEach((q) => {
+        statuses[q.id] = "graded";
+        results[q.id] = {
+          points_earned: q.points_earned ?? 0,
+          points_possible: q.points_possible,
+          ai_feedback: q.ai_feedback,
+          correct_answer: q.correct_answer,
+        };
+      });
+      setGradingStatus(statuses);
+      setGradingResults(results);
+      setFinalScore(quiz.score);
+      setPhase("done");
+    } else {
+      // Shuffle questions for taking mode
+      setShuffledQuestions([...quiz.questions].sort(() => Math.random() - 0.5));
+    }
+  }, [quiz?.id, quiz?.completed_at]);
 
   const handleSubmit = async () => {
     if (!quiz || !id) return;
 
     // Initialize all as pending and switch to grading phase
     const initial: Record<string, QuestionStatus> = {};
-    quiz.questions.forEach((q) => { initial[q.id] = "pending"; });
+    shuffledQuestions.forEach((q) => { initial[q.id] = "pending"; });
     setGradingStatus(initial);
     setPhase("grading");
 
@@ -71,7 +78,7 @@ export function QuizDetailPage() {
           ...(userId ? { "X-User-Id": userId } : {}),
         },
         body: JSON.stringify({
-          answers: quiz.questions.map((q) => ({
+          answers: shuffledQuestions.map((q) => ({
             question_id: q.id,
             answer: answers[q.id] || "",
           })),
@@ -148,13 +155,13 @@ export function QuizDetailPage() {
         </h1>
         {finalScore !== null && (
           <span className={`text-2xl font-bold ${scoreColor}`}>
-            {Math.round(finalScore)}%
+            {t("quizzes.score")}: {Math.round(finalScore)}
           </span>
         )}
       </div>
 
       <div className="space-y-6">
-        {quiz.questions.map((q, i) => (
+        {shuffledQuestions.map((q, i) => (
           <QuizQuestionCard
             key={q.id}
             question={q}

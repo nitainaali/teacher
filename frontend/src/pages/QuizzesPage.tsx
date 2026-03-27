@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
-import { getQuizzes, generateQuiz, updateQuiz, deleteQuiz } from "../api/quizzes";
+import { getQuizzes, generateQuiz, updateQuiz, deleteQuiz, resetQuiz } from "../api/quizzes";
 import { RecommendationsPanel } from "../components/RecommendationsPanel";
 import type { QuizSession } from "../types";
 
@@ -124,6 +124,13 @@ export function QuizzesPage() {
     } catch {
       // silently ignore
     }
+  };
+
+  const handleOpen = async (s: QuizSession) => {
+    if (s.score !== null) {
+      await resetQuiz(s.id);
+    }
+    navigate(`/course/${courseId}/learning/quizzes/${s.id}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -313,13 +320,13 @@ export function QuizzesPage() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       {s.score !== null ? (
                         <span className="text-blue-400 font-bold text-sm">
-                          {Math.round(s.score)}%
+                          {t("quizzes.score")}: {Math.round(s.score)}
                         </span>
                       ) : (
                         <span className="text-xs text-yellow-400">{t("quizzes.notCompleted")}</span>
                       )}
                       <button
-                        onClick={() => navigate(`/course/${courseId}/learning/quizzes/${s.id}`)}
+                        onClick={() => handleOpen(s)}
                         className="text-gray-400 hover:text-white text-sm px-1 transition-colors"
                         title="Open"
                       >
