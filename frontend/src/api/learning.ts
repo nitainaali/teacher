@@ -17,3 +17,6 @@ export const getTopicSummaries = (courseId: string, topic?: string) => {
 
 export const deleteTopicSummary = (id: string) =>
   client.delete(`/api/learning/topic-summaries/${id}`);
+
+export const dismissRecommendation = (courseId: string, topic: string) =>
+  client.delete("/api/learning/recommendations", { params: { course_id: courseId, topic } });

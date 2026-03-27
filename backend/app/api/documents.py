@@ -5,11 +5,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, delete as sa_delete
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.models.models import Document, Course, SharedDocument, SharedDocumentChunk, DocumentChunk, User
+from app.models.models import Document, Course, SharedDocument, SharedDocumentChunk, DocumentChunk, User, LearningEvent
 from app.schemas.schemas import DocumentOut, DocumentUpdate, ImportFromSharedRequest
 from app.services.document_processor import process_document
 from app.api.deps import get_current_user, get_admin_user
@@ -220,6 +220,11 @@ async def delete_document(
         os.remove(doc.file_path)
     except FileNotFoundError:
         pass
+    await db.execute(
+        sa_delete(LearningEvent).where(
+            LearningEvent.details["document_id"].as_string() == doc_id
+        )
+    )
     await db.delete(doc)
     await db.commit()
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getRecommendations } from "../api/learning";
+import { getRecommendations, dismissRecommendation } from "../api/learning";
 import { MarkdownContent } from "./MarkdownContent";
 import { getCurrentUserId } from "../api/client";
 import type { Recommendation } from "../types";
@@ -107,6 +107,11 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
     }
   };
 
+  const handleDismiss = async (topic: string) => {
+    setRecs((prev) => prev.filter((r) => r.topic !== topic));
+    await dismissRecommendation(courseId, topic).catch(() => {});
+  };
+
   const closeModal = () => {
     abortRef.current?.abort();
     setSelectedRec(null);
@@ -159,9 +164,16 @@ export function RecommendationsPanel({ courseId, language = "en", onTopicSelect 
                   <p className="font-medium truncate">{rec.topic}</p>
                   <p className="opacity-70 mt-0.5 truncate">{rec.reason}</p>
                 </div>
-                <span className="shrink-0 opacity-60 ml-auto">
+                <span className="shrink-0 opacity-60">
                   {t(`recommendations.urgency.${rec.urgency_level}`)}
                 </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDismiss(rec.topic); }}
+                  className="shrink-0 text-gray-500 hover:text-red-400 transition-colors px-1"
+                  title={t("common.delete")}
+                >
+                  ✕
+                </button>
               </div>
             );
           })}

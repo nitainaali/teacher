@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 import anthropic as _anthropic
 
 from app.core.database import get_db
-from app.models.models import TopicSummary, User
+from app.models.models import TopicSummary, User, LearningEvent
 from app.schemas.schemas import TopicSummaryRequest, TopicSummaryOut, RecommendationExplanationRequest
 from app.services import claude, rag
 from app.services.recommendations import get_recommendations
@@ -155,6 +155,25 @@ async def recommendations(
     """Get personalized study recommendations for a course."""
     recs = await get_recommendations(db, course_id, limit)
     return recs
+
+
+@router.delete("/recommendations", status_code=204)
+async def dismiss_recommendation(
+    course_id: str,
+    topic: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a recommendation by deleting its exam_topic learning events."""
+    await db.execute(
+        sa_delete(LearningEvent).where(
+            LearningEvent.course_id == course_id,
+            LearningEvent.user_id == current_user.id,
+            LearningEvent.event_type == "exam_topic",
+            LearningEvent.topic == topic,
+        )
+    )
+    await db.commit()
 
 
 @router.post("/recommendation-explanation")
