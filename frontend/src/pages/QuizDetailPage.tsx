@@ -209,8 +209,10 @@ function QuizQuestionCard({
   gradingResult: GradingResult | null;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
+  const [revealAnswer, setRevealAnswer] = useState(false);
   const locked = phase !== "taking";
   const isGraded = status === "graded" && gradingResult !== null;
+  const isUnanswered = isGraded && !answer.trim();
   const isCorrect = isGraded && gradingResult.points_earned >= gradingResult.points_possible;
   const isPartial = isGraded && gradingResult.points_earned > 0 && gradingResult.points_earned < gradingResult.points_possible;
 
@@ -225,7 +227,12 @@ function QuizQuestionCard({
             {t("quizzes.checking")}
           </span>
         )}
-        {isGraded && (
+        {isGraded && isUnanswered && !revealAnswer && (
+          <span className="text-xs font-medium text-yellow-400">
+            {t("quizzes.noAnswerGiven")}
+          </span>
+        )}
+        {isGraded && (!isUnanswered || revealAnswer) && (
           <span className={`text-xs font-medium ${isCorrect ? "text-green-400" : isPartial ? "text-yellow-400" : "text-red-400"}`}>
             {isCorrect ? `✓ ${t("quizzes.correct")}` : isPartial ? `~ ${t("quizzes.partial")}` : `✗ ${t("quizzes.incorrect")}`}
             {" "}
@@ -243,7 +250,7 @@ function QuizQuestionCard({
       {question.question_type === "multiple_choice" && question.options ? (
         <div className="space-y-2">
           {question.options.map((opt) => {
-            const isCorrectOpt = isGraded && opt.value === gradingResult?.correct_answer;
+            const isCorrectOpt = isGraded && (!isUnanswered || revealAnswer) && opt.value === gradingResult?.correct_answer;
             const isWrongStudentChoice = isGraded && opt.value === answer && answer !== gradingResult?.correct_answer;
             return (
               <label
@@ -285,8 +292,18 @@ function QuizQuestionCard({
         />
       )}
 
+      {/* Reveal answer button for unanswered questions */}
+      {isUnanswered && !revealAnswer && (
+        <button
+          onClick={() => setRevealAnswer(true)}
+          className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline"
+        >
+          {t("quizzes.revealAnswer")}
+        </button>
+      )}
+
       {/* Free-text feedback */}
-      {isGraded && question.question_type !== "multiple_choice" && gradingResult.ai_feedback && (
+      {isGraded && (!isUnanswered || revealAnswer) && question.question_type !== "multiple_choice" && gradingResult.ai_feedback && (
         <div className="mt-3 p-3 bg-gray-700 rounded-lg">
           <p className="text-xs text-gray-400 mb-1">{t("quizzes.feedback")}</p>
           <div className="text-sm text-gray-200">
@@ -296,7 +313,7 @@ function QuizQuestionCard({
       )}
 
       {/* MC feedback for wrong answer */}
-      {isGraded && question.question_type === "multiple_choice" && !isCorrect && gradingResult.ai_feedback && (
+      {isGraded && (!isUnanswered || revealAnswer) && question.question_type === "multiple_choice" && !isCorrect && gradingResult.ai_feedback && (
         <p className="mt-2 text-xs text-gray-400">
           {gradingResult.ai_feedback}
         </p>

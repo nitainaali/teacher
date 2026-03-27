@@ -282,7 +282,15 @@
     "unnamed": "Untitled quiz",
     "notCompleted": "Not completed",
     "delete": "Delete quiz",
-    "editMeta": "Edit quiz info"
+    "editMeta": "Edit quiz info",
+    "gradingHeader": "Grading...",
+    "checking": "Checking...",
+    "correct": "Correct",
+    "partial": "Partial",
+    "incorrect": "Incorrect",
+    "retake": "Back to quizzes",
+    "noAnswerGiven": "No answer selected",
+    "revealAnswer": "Show answer"
   },
   "chat": {
     "title": "Ask a Question",
