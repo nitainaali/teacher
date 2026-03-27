@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getQuiz } from "../api/quizzes";
+import { getQuiz, resetQuiz } from "../api/quizzes";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { getCurrentUserId } from "../api/client";
 import type { QuizSessionDetail, QuizQuestion } from "../types";
@@ -129,6 +129,18 @@ export function QuizDetailPage() {
     }
   };
 
+  const handleRetake = async () => {
+    if (!id) return;
+    await resetQuiz(id);
+    setAnswers({});
+    setGradingStatus({});
+    setGradingResults({});
+    setFinalScore(null);
+    setPhase("taking");
+    const fresh = await getQuiz(id);
+    setQuiz(fresh);
+  };
+
   if (!quiz) return <p className="text-gray-500">{t("common.loading")}</p>;
 
   const scoreColor =
@@ -186,12 +198,20 @@ export function QuizDetailPage() {
       )}
 
       {phase === "done" && (
-        <button
-          onClick={() => navigate(`/course/${courseId}/learning/quizzes`)}
-          className="mt-6 w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg font-medium transition-colors"
-        >
-          {t("quizzes.retake")}
-        </button>
+        <div className="mt-6 flex flex-col gap-3">
+          <button
+            onClick={handleRetake}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium transition-colors"
+          >
+            {t("quizzes.retakeQuiz")}
+          </button>
+          <button
+            onClick={() => navigate(`/course/${courseId}/learning/quizzes`)}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg font-medium transition-colors"
+          >
+            {t("quizzes.retake")}
+          </button>
+        </div>
       )}
     </div>
   );
