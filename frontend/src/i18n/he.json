@@ -282,7 +282,15 @@
     "unnamed": "בחן ללא שם",
     "notCompleted": "לא הושלם",
     "delete": "מחק בחן",
-    "editMeta": "ערוך פרטי בחן"
+    "editMeta": "ערוך פרטי בחן",
+    "gradingHeader": "בודק...",
+    "checking": "בודק...",
+    "correct": "נכון",
+    "partial": "חלקי",
+    "incorrect": "שגוי",
+    "retake": "חזרה לבחנים",
+    "noAnswerGiven": "לא סומנה תשובה",
+    "revealAnswer": "הצג תשובה"
   },
   "chat": {
     "title": "שאל שאלה",
