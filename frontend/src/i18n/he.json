@@ -292,7 +292,8 @@
     "retakeQuiz": "פתור מחדש",
     "noAnswerGiven": "לא סומנה תשובה",
     "revealAnswer": "הצג תשובה",
-    "correctAnswer": "התשובה הנכונה"
+    "correctAnswer": "התשובה הנכונה",
+    "replaceQuestion": "החלף שאלה"
   },
   "chat": {
     "title": "שאל שאלה",

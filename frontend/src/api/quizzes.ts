@@ -1,5 +1,5 @@
 import client from "./client";
-import type { QuizSession, QuizSessionDetail } from "../types";
+import type { QuizSession, QuizSessionDetail, QuizQuestion } from "../types";
 
 export const getQuizzes = (courseId?: string) => {
   const params = courseId ? { course_id: courseId } : {};
@@ -30,3 +30,10 @@ export const resetQuiz = (id: string) =>
   client.post<QuizSession>(`/api/quizzes/${id}/reset`).then((r) => r.data);
 
 export const deleteQuiz = (id: string) => client.delete(`/api/quizzes/${id}`);
+
+export const replaceQuestion = (sessionId: string, questionId: string, language: string) =>
+  client
+    .post<QuizQuestion>(`/api/quizzes/${sessionId}/questions/${questionId}/replace`, null, {
+      params: { language },
+    })
+    .then((r) => r.data);

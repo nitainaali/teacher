@@ -137,6 +137,69 @@ async def generate_quiz(
     return session
 
 
+async def generate_single_question(
+    db: AsyncSession,
+    course_id: str,
+    topic: str,
+    difficulty: str,
+    question_type: str,
+    language: str = "en",
+) -> dict:
+    """Generate one replacement question on a given topic. Returns a normalized dict."""
+    context = await rag.retrieve_context(db, topic, course_id, top_k=10)
+    extra_system = (
+        "Use ONLY the following course materials to generate questions. "
+        "Do not use general knowledge not present in these materials.\n\n"
+        f"{context}"
+    ) if context else None
+
+    difficulty_map = {"easy": "basic conceptual", "medium": "intermediate", "hard": "advanced and challenging"}
+    difficulty_desc = difficulty_map.get(difficulty, "intermediate")
+
+    if question_type == "multiple_choice":
+        qtype_instruction = "Generate a multiple_choice question."
+    else:
+        qtype_instruction = (
+            "Generate a free_text question. Write exactly one focused sub-question "
+            "(no multi-part). Write concisely so the student can give a precise answer."
+        )
+
+    prompt = (
+        f"Generate exactly 1 {difficulty_desc} quiz question on the topic: {topic}\n"
+        f"for an electrical engineering student. {qtype_instruction}\n"
+        "Return a JSON array with exactly 1 element having these fields:\n"
+        "  question_text: string\n"
+        "  question_type: \"multiple_choice\" or \"free_text\"\n"
+        "  options: for multiple_choice, exactly 4 objects: "
+        "[{\"label\": \"Full option text\", \"value\": \"A\"}, "
+        "{\"label\": \"...\", \"value\": \"B\"}, "
+        "{\"label\": \"...\", \"value\": \"C\"}, "
+        "{\"label\": \"...\", \"value\": \"D\"}]; for free_text: null\n"
+        "  IMPORTANT: in option labels use only inline math $...$ (never display math $$...$$)\n"
+        "  correct_answer: for multiple_choice, the letter A/B/C/D; "
+        "for free_text, a complete model answer (2-4 sentences)\n"
+        "  topic: 2-4 word topic label\n"
+        "Output raw JSON array only, no markdown."
+    )
+
+    response = await claude.complete(
+        db=db,
+        messages=[{"role": "user", "content": prompt}],
+        course_id=course_id,
+        max_tokens=1000,
+        extra_system=extra_system,
+        language=language,
+        model="claude-haiku-4-5-20251001",
+    )
+
+    items = _parse_json_array(response)
+    if not items:
+        raise ValueError("No question generated")
+    item = items[0]
+    item["options"] = _normalize_options(item.get("options"))
+    return item
+
+
 async def grade_quiz(db: AsyncSession, session: QuizSession, answers: list[dict]) -> QuizSession:
     """Grade submitted answers. Free text graded by Claude."""
     from sqlalchemy import select
