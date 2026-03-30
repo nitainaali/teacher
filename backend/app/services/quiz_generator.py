@@ -61,6 +61,11 @@ async def generate_quiz(
         qtype_instruction = "Use only free_text questions."
     else:
         qtype_instruction = "Mix multiple choice and free text questions."
+    if question_type != "multiple_choice":
+        qtype_instruction += (
+            " Free-text questions must each contain exactly one focused sub-question"
+            " (no multi-part questions). Write concisely so the student can give a precise answer."
+        )
 
     if assigned_topics:
         topic_assignments = "\n".join(f"{i+1}. {t}" for i, t in enumerate(assigned_topics))
@@ -86,7 +91,7 @@ async def generate_quiz(
         "{\"label\": \"...\", \"value\": \"D\"}]; for free_text: null\n"
         "  IMPORTANT: in option labels use only inline math $...$ (never display math $$...$$)\n"
         "  correct_answer: for multiple_choice, the letter A/B/C/D; "
-        "for free_text, the complete correct answer\n"
+        "for free_text, a complete model answer (2-4 sentences) the student's response will be graded against\n"
         "  topic: 2-4 word topic label\n"
         "Output raw JSON array only, no markdown."
     )
