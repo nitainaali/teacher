@@ -13,7 +13,7 @@ from app.schemas.schemas import (
     QuizGenerateRequest, QuizSessionOut, QuizSessionDetail,
     QuizQuestionOut, QuizSubmitRequest, QuizSessionUpdate,
 )
-from app.services.quiz_generator import generate_quiz, grade_quiz, grade_quiz_stream_gen
+from app.services.quiz_generator import generate_quiz, grade_quiz, grade_quiz_stream_gen, generate_single_question
 from app.services import claude as claude_svc
 from app.services import student_intelligence
 from app.api.deps import get_current_user
@@ -183,6 +183,56 @@ async def reset_quiz(
     await db.commit()
     await db.refresh(session)
     return session
+
+
+@router.post("/{session_id}/questions/{question_id}/replace", response_model=QuizQuestionOut)
+async def replace_question(
+    session_id: str,
+    question_id: str,
+    language: str = "en",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace an unanswered question with a freshly generated one on the same topic."""
+    session = await _get_quiz_owned(session_id, current_user.id, db)
+    if session.completed_at:
+        raise HTTPException(400, "Quiz already completed")
+
+    q_result = await db.execute(
+        select(QuizQuestion).where(
+            QuizQuestion.id == question_id,
+            QuizQuestion.session_id == session_id,
+        )
+    )
+    question = q_result.scalar_one_or_none()
+    if not question:
+        raise HTTPException(404, "Question not found")
+    if question.student_answer:
+        raise HTTPException(400, "Cannot replace an answered question")
+
+    topic = question.topic or session.topic or "general"
+    difficulty = session.difficulty or "medium"
+
+    item = await generate_single_question(
+        db=db,
+        course_id=session.course_id,
+        topic=topic,
+        difficulty=difficulty,
+        question_type=question.question_type,
+        language=language,
+    )
+
+    question.question_text = item.get("question_text", "")
+    question.options = item.get("options")
+    question.correct_answer = item.get("correct_answer", "")
+    question.topic = item.get("topic", topic)
+    question.student_answer = None
+    question.points_earned = None
+    question.ai_feedback = None
+
+    await db.commit()
+    await db.refresh(question)
+    return question
 
 
 @router.post("/{session_id}/submit", response_model=QuizSessionDetail)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getQuiz, resetQuiz } from "../api/quizzes";
+import { getQuiz, resetQuiz, replaceQuestion } from "../api/quizzes";
 import { MarkdownContent } from "../components/MarkdownContent";
 import { getCurrentUserId } from "../api/client";
 import type { QuizSessionDetail, QuizQuestion } from "../types";
@@ -19,7 +19,7 @@ interface GradingResult {
 export function QuizDetailPage() {
   const { id, courseId } = useParams<{ id: string; courseId: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [quiz, setQuiz] = useState<QuizSessionDetail | null>(null);
   const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>([]);
@@ -28,6 +28,7 @@ export function QuizDetailPage() {
   const [gradingStatus, setGradingStatus] = useState<Record<string, QuestionStatus>>({});
   const [gradingResults, setGradingResults] = useState<Record<string, GradingResult>>({});
   const [finalScore, setFinalScore] = useState<number | null>(null);
+  const [replacingQuestion, setReplacingQuestion] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (id) getQuiz(id).then(setQuiz);
@@ -129,6 +130,18 @@ export function QuizDetailPage() {
     }
   };
 
+  const handleReplaceQuestion = async (questionId: string) => {
+    if (!id) return;
+    setReplacingQuestion((prev) => ({ ...prev, [questionId]: true }));
+    try {
+      const newQ = await replaceQuestion(id, questionId, i18n.language);
+      setShuffledQuestions((prev) => prev.map((q) => q.id === questionId ? newQ : q));
+      setAnswers((prev) => { const next = { ...prev }; delete next[questionId]; return next; });
+    } catch { /* ignore */ } finally {
+      setReplacingQuestion((prev) => ({ ...prev, [questionId]: false }));
+    }
+  };
+
   const handleRetake = async () => {
     if (!id) return;
     await resetQuiz(id);
@@ -183,6 +196,8 @@ export function QuizDetailPage() {
             phase={phase}
             status={gradingStatus[q.id] ?? "pending"}
             gradingResult={gradingResults[q.id] ?? null}
+            onReplace={() => handleReplaceQuestion(q.id)}
+            replacing={replacingQuestion[q.id] ?? false}
             t={t}
           />
         ))}
@@ -225,6 +240,8 @@ function QuizQuestionCard({
   phase,
   status,
   gradingResult,
+  onReplace,
+  replacing,
   t,
 }: {
   question: QuizQuestion;
@@ -234,6 +251,8 @@ function QuizQuestionCard({
   phase: QuizPhase;
   status: QuestionStatus;
   gradingResult: GradingResult | null;
+  onReplace: () => void;
+  replacing: boolean;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
   const [revealAnswer, setRevealAnswer] = useState(false);
@@ -247,6 +266,19 @@ function QuizQuestionCard({
     <div className="bg-gray-800 rounded-xl p-5">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm text-gray-400">{t("quizzes.question")} {index + 1}</p>
+        {/* Replace question button — only in taking mode before answering */}
+        {phase === "taking" && !answer.trim() && (
+          <button
+            onClick={onReplace}
+            disabled={replacing}
+            className="text-xs text-gray-500 hover:text-blue-400 transition-colors disabled:opacity-40 flex items-center gap-1"
+          >
+            {replacing
+              ? <span className="animate-spin inline-block w-3 h-3 border border-blue-400 border-t-transparent rounded-full" />
+              : "↺"}
+            {!replacing && t("quizzes.replaceQuestion")}
+          </button>
+        )}
         {/* Per-question status badge */}
         {status === "checking" && (
           <span className="text-xs text-yellow-400 flex items-center gap-1">
