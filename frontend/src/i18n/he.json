@@ -291,7 +291,8 @@
     "retake": "חזרה לבחנים",
     "retakeQuiz": "פתור מחדש",
     "noAnswerGiven": "לא סומנה תשובה",
-    "revealAnswer": "הצג תשובה"
+    "revealAnswer": "הצג תשובה",
+    "correctAnswer": "התשובה הנכונה"
   },
   "chat": {
     "title": "שאל שאלה",

@@ -291,7 +291,8 @@
     "retake": "Back to quizzes",
     "retakeQuiz": "Retake",
     "noAnswerGiven": "No answer selected",
-    "revealAnswer": "Show answer"
+    "revealAnswer": "Show answer",
+    "correctAnswer": "Correct Answer"
   },
   "chat": {
     "title": "Ask a Question",

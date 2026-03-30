@@ -319,8 +319,18 @@ function QuizQuestionCard({
         />
       )}
 
-      {/* Reveal answer button for unanswered questions */}
+      {/* Reveal answer button: MC + free-text — unanswered questions */}
       {isUnanswered && !revealAnswer && (
+        <button
+          onClick={() => setRevealAnswer(true)}
+          className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline"
+        >
+          {t("quizzes.revealAnswer")}
+        </button>
+      )}
+
+      {/* Reveal answer button: free-text only — wrong or partial answers */}
+      {isGraded && !isUnanswered && !isCorrect && question.question_type !== "multiple_choice" && !revealAnswer && (
         <button
           onClick={() => setRevealAnswer(true)}
           className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline"
@@ -335,6 +345,16 @@ function QuizQuestionCard({
           <p className="text-xs text-gray-400 mb-1">{t("quizzes.feedback")}</p>
           <div className="text-sm text-gray-200">
             <MarkdownContent content={gradingResult.ai_feedback} />
+          </div>
+        </div>
+      )}
+
+      {/* Model answer revealed for wrong/partial/unanswered free-text */}
+      {isGraded && !isCorrect && revealAnswer && question.question_type !== "multiple_choice" && gradingResult.correct_answer && (
+        <div className="mt-3 p-3 bg-green-900/30 border border-green-700 rounded-lg">
+          <p className="text-xs text-green-400 mb-1">{t("quizzes.correctAnswer")}</p>
+          <div className="text-sm text-gray-200">
+            <MarkdownContent content={gradingResult.correct_answer} />
           </div>
         </div>
       )}
